@@ -11,6 +11,7 @@ struct AskView: View {
     @State private var activeToolName: String?
     @State private var showHistory = false
     @State private var streamTask: Task<Void, Never>?
+    @State private var showScopeSheet = false
 
     private let quickPrompts = [
         "Should I push hard today?",
@@ -39,11 +40,36 @@ struct AskView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showScopeSheet) {
+                if let conv = conversation {
+                    ConversationScopeSheet(
+                        conversationID: conv.id,
+                        initial: conv.pillar_scope
+                    ) { newScope in
+                        if let api = app.apiClient() {
+                            Task {
+                                try? await api.aiUpdateConversationScope(id: conv.id, pillarScope: newScope)
+                                let list = try? await api.aiConversations()
+                                conversation = list?.first(where: { $0.id == conv.id })
+                            }
+                        }
+                    }
+                    .environmentObject(app)
+                }
+            }
         }
         .task { await ensureConversation() }
     }
 
     // ─── Header ─────────────────────────────────────────────────────────
+
+    private var scopeSubtitle: String {
+        let scope = conversation?.pillar_scope ?? []
+        if scope.isEmpty {
+            return "● All pillars · finance + goals + health"
+        }
+        return "● " + scope.map { $0.capitalized }.joined(separator: " + ") + " only"
+    }
 
     private var chatHeader: some View {
         HStack(spacing: 12) {
@@ -56,11 +82,17 @@ struct AskView: View {
             .frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Claude").font(.system(size: 16, weight: .bold)).foregroundStyle(Theme.text)
-                Text("● Connected · 3 pillars synced")
+                Text(scopeSubtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.healthGo)
             }
             Spacer()
+            if conversation != nil {
+                Button { showScopeSheet = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(Theme.text2)
+                }
+            }
             Button { showHistory = true } label: {
                 Image(systemName: "clock.arrow.circlepath")
                     .foregroundStyle(Theme.text2)

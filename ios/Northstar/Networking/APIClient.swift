@@ -341,19 +341,32 @@ struct APIClient {
     func aiConversations() async throws -> [Conversation] {
         try await get(path: "/api/ai/conversations")
     }
-    struct CreateConvInput: Encodable { var title: String? }
-    func aiCreateConversation(title: String? = nil) async throws -> Conversation {
-        try await post(path: "/api/ai/conversations", body: CreateConvInput(title: title))
+    struct CreateConvInput: Encodable {
+        var title: String?
+        var pillar_scope: [String]?
+    }
+    func aiCreateConversation(title: String? = nil,
+                              pillarScope: [String]? = nil) async throws -> Conversation {
+        try await post(path: "/api/ai/conversations",
+                       body: CreateConvInput(title: title, pillar_scope: pillarScope))
     }
     func aiDeleteConversation(id: String) async throws {
         let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         _ = try await send(method: "DELETE", path: "/api/ai/conversations/\(e)", body: nil)
     }
-    struct ConversationPatch: Encodable { var title: String? }
+    struct ConversationPatch: Encodable {
+        var title: String?
+        var pillar_scope: [String]?
+    }
     func aiRenameConversation(id: String, title: String) async throws {
         let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         try await patchVoid(path: "/api/ai/conversations/\(e)",
-                            body: ConversationPatch(title: title))
+                            body: ConversationPatch(title: title, pillar_scope: nil))
+    }
+    func aiUpdateConversationScope(id: String, pillarScope: [String]) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        try await patchVoid(path: "/api/ai/conversations/\(e)",
+                            body: ConversationPatch(title: nil, pillar_scope: pillarScope))
     }
     func aiMessages(convID: String) async throws -> [StoredMessage] {
         let e = convID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? convID

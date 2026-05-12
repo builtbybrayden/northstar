@@ -19,7 +19,7 @@ docker compose logs whoop-sidecar --tail=30
 
 Common causes:
 
-- Sidecar in mock mode by accident — check `SIDECAR_MODE` env on the sidecar container.
+- Sidecar in mock mode by accident — check `NORTHSTAR_FINANCE_MODE` (actual-sidecar) or `NORTHSTAR_HEALTH_MODE` (whoop-sidecar) env on the container.
 - Real-mode credentials missing/wrong — sidecar logs the auth error.
 - Sync worker disabled — `NORTHSTAR_FINANCE_SYNC_ENABLED=0` or `_HEALTH_SYNC_ENABLED=0`.
 - Pillar disabled — `NORTHSTAR_PILLAR_FINANCE=0` skips both sync and REST.

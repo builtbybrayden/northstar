@@ -48,7 +48,7 @@ trying Northstar before you decide to wire up Actual.
 
 ## Real mode
 
-Flip `NORTHSTAR_FINANCE_SIDECAR_MODE=real` and add:
+Flip `NORTHSTAR_FINANCE_MODE=actual` on the sidecar and add:
 
 ```ini
 ACTUAL_SERVER_URL=https://actual.your-tailnet.ts.net

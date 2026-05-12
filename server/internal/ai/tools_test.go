@@ -229,6 +229,71 @@ func TestUsage_Add_Accumulates(t *testing.T) {
 	}
 }
 
+func TestFilterDefsByScope_EmptyReturnsAll(t *testing.T) {
+	defs := Defs()
+	got := FilterDefsByScope(defs, nil)
+	if len(got) != len(defs) {
+		t.Errorf("empty scope should keep all tools, got %d vs %d", len(got), len(defs))
+	}
+}
+
+func TestFilterDefsByScope_FinanceOnly(t *testing.T) {
+	got := FilterDefsByScope(Defs(), []string{"finance"})
+	if len(got) == 0 {
+		t.Fatal("expected some finance tools")
+	}
+	for _, d := range got {
+		if !strings.HasPrefix(d.Name, "finance_") {
+			t.Errorf("unexpected tool %q in finance-only scope", d.Name)
+		}
+	}
+	if got[len(got)-1].CacheControl == nil {
+		t.Errorf("filtered list should have cache_control on the last tool")
+	}
+}
+
+func TestFilterDefsByScope_MultiplePillars(t *testing.T) {
+	got := FilterDefsByScope(Defs(), []string{"finance", "health"})
+	hasF, hasH := false, false
+	for _, d := range got {
+		switch {
+		case strings.HasPrefix(d.Name, "finance_"):
+			hasF = true
+		case strings.HasPrefix(d.Name, "health_"):
+			hasH = true
+		case strings.HasPrefix(d.Name, "goals_"):
+			t.Errorf("scope didn't include goals but %q slipped through", d.Name)
+		}
+	}
+	if !hasF || !hasH {
+		t.Errorf("expected both finance and health tools, got hasF=%v hasH=%v", hasF, hasH)
+	}
+}
+
+func TestFilterDefsByScope_AllUnknownReturnsAll(t *testing.T) {
+	// Defensive: a scope of only unknown strings shouldn't blank out the tool
+	// surface — that would silently break the chat. We treat it as "no filter".
+	defs := Defs()
+	got := FilterDefsByScope(defs, []string{"banana", "wallet"})
+	if len(got) != len(defs) {
+		t.Errorf("unknown-only scope should fall through to all tools, got %d", len(got))
+	}
+}
+
+func TestNormalizePillarScope_DedupesAndSorts(t *testing.T) {
+	in := []string{"Health", "finance", " HEALTH ", "wallet", "goals"}
+	out := normalizePillarScope(in)
+	want := []string{"finance", "goals", "health"}
+	if len(out) != len(want) {
+		t.Fatalf("normalize = %v, want %v", out, want)
+	}
+	for i := range out {
+		if out[i] != want[i] {
+			t.Errorf("normalize[%d] = %q, want %q", i, out[i], want[i])
+		}
+	}
+}
+
 func TestUsage_JSON_MatchesAnthropicShape(t *testing.T) {
 	// message_start frame from Anthropic should round-trip into Usage.
 	raw := []byte(`{"type":"message_start","message":{"usage":{"input_tokens":42,"output_tokens":1,"cache_creation_input_tokens":120,"cache_read_input_tokens":3500}}}`)

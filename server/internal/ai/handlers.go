@@ -64,23 +64,49 @@ func (h *Handlers) ListConversations(w http.ResponseWriter, r *http.Request) {
 }
 
 type createConversationInput struct {
-	Title string `json:"title,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	PillarScope []string `json:"pillar_scope,omitempty"`
 }
 
 func (h *Handlers) CreateConversation(w http.ResponseWriter, r *http.Request) {
 	var in createConversationInput
 	_ = json.NewDecoder(r.Body).Decode(&in)
+	scope := normalizePillarScope(in.PillarScope)
+	scopeJSON, _ := json.Marshal(scope)
 	id := uuid.NewString()
 	now := h.Now().Unix()
 	if _, err := h.DB.ExecContext(r.Context(),
 		`INSERT INTO ai_conversations (id, started_at, title, pillar_scope, archived)
-		 VALUES (?, ?, ?, '[]', 0)`, id, now, in.Title); err != nil {
+		 VALUES (?, ?, ?, ?, 0)`, id, now, in.Title, string(scopeJSON)); err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, conversationDTO{
-		ID: id, Title: in.Title, StartedAt: now, PillarScope: []string{},
+		ID: id, Title: in.Title, StartedAt: now, PillarScope: scope,
 	})
+}
+
+// normalizePillarScope lowercases, drops unknowns, dedupes, sorts. Returns
+// an empty slice for "all pillars" so the wire shape is always `[]`.
+func normalizePillarScope(in []string) []string {
+	allowed := map[string]bool{"finance": true, "goals": true, "health": true}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, s := range in {
+		s = strings.ToLower(strings.TrimSpace(s))
+		if !allowed[s] || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	// Sort for deterministic JSON
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j-1] > out[j]; j-- {
+			out[j-1], out[j] = out[j], out[j-1]
+		}
+	}
+	return out
 }
 
 func (h *Handlers) DeleteConversation(w http.ResponseWriter, r *http.Request) {
@@ -98,11 +124,12 @@ func (h *Handlers) DeleteConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchConversationInput struct {
-	Title *string `json:"title,omitempty"`
+	Title       *string   `json:"title,omitempty"`
+	PillarScope *[]string `json:"pillar_scope,omitempty"`
 }
 
-// PatchConversation lets the client rename a conversation. Currently only
-// title is mutable; pillar_scope edits would land here too when wired.
+// PatchConversation mutates conversation metadata. Currently supports title +
+// pillar_scope edits.
 func (h *Handlers) PatchConversation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -114,17 +141,33 @@ func (h *Handlers) PatchConversation(w http.ResponseWriter, r *http.Request) {
 		writeErrMsg(w, http.StatusBadRequest, "bad json")
 		return
 	}
-	if in.Title == nil {
+	if in.Title == nil && in.PillarScope == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "noop": true})
 		return
 	}
-	title := strings.TrimSpace(*in.Title)
-	if len(title) > 200 {
-		title = title[:200]
+	sets := []string{}
+	args := []any{}
+	resp := map[string]any{"ok": true}
+	if in.Title != nil {
+		title := strings.TrimSpace(*in.Title)
+		if len(title) > 200 {
+			title = title[:200]
+		}
+		sets = append(sets, "title = ?")
+		args = append(args, title)
+		resp["title"] = title
 	}
-	res, err := h.DB.ExecContext(r.Context(),
-		`UPDATE ai_conversations SET title = ? WHERE id = ? AND archived = 0`,
-		title, id)
+	if in.PillarScope != nil {
+		scope := normalizePillarScope(*in.PillarScope)
+		scopeJSON, _ := json.Marshal(scope)
+		sets = append(sets, "pillar_scope = ?")
+		args = append(args, string(scopeJSON))
+		resp["pillar_scope"] = scope
+	}
+	args = append(args, id)
+	query := "UPDATE ai_conversations SET " + strings.Join(sets, ", ") +
+		" WHERE id = ? AND archived = 0"
+	res, err := h.DB.ExecContext(r.Context(), query, args...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -134,7 +177,7 @@ func (h *Handlers) PatchConversation(w http.ResponseWriter, r *http.Request) {
 		writeErrMsg(w, http.StatusNotFound, "conversation not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "title": title})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // ─── Conversation messages ────────────────────────────────────────────────
@@ -196,10 +239,11 @@ func (h *Handlers) SendMessageStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify conversation exists
-	var ok int
+	// Verify conversation exists + load scope.
+	var scopeRaw string
 	if err := h.DB.QueryRowContext(r.Context(),
-		`SELECT 1 FROM ai_conversations WHERE id = ? AND archived = 0`, convID).Scan(&ok); err != nil {
+		`SELECT COALESCE(pillar_scope,'[]') FROM ai_conversations WHERE id = ? AND archived = 0`,
+		convID).Scan(&scopeRaw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeErrMsg(w, http.StatusNotFound, "conversation not found")
 			return
@@ -207,6 +251,9 @@ func (h *Handlers) SendMessageStream(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	var scope []string
+	_ = json.Unmarshal([]byte(scopeRaw), &scope)
+	tools := FilterDefsByScope(Defs(), scope)
 
 	// SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -255,7 +302,7 @@ func (h *Handlers) SendMessageStream(w http.ResponseWriter, r *http.Request) {
 		assistantBlocks, usage, streamErr = h.Client.StreamConversation(
 			r.Context(),
 			SystemBlocks(h.Now()),
-			Defs(),
+			tools,
 			history,
 			executor,
 			emit,

@@ -2,7 +2,9 @@
 
 A self-hosted iOS app that ties together your **finance** (Actual Budget), **goals** (native), and **biometrics** (WHOOP) — with Claude as a cross-pillar brain.
 
-> Status: **Phases 0–5 shipped + ops-polish wave** (2026-05-12). All pillars functional in mock mode end-to-end. Phase 6 docs site + installers landed; Apple Dev Program path (TestFlight, App Store, APNs production sender) explicitly deferred. Latest polish wave: admin-token gate on `/api/pair/initiate`, initial-sync purchase-spam suppression, supplement reminder auto-firing with schedule UI, per-category quiet hours UI, sleep + overreach health detectors, SSE live-notification fanout to open iOS app, Anthropic token-usage telemetry, chat stream cancel + conversation rename + inline tool-error surfacing. 5 server packages pass with 17 new tests across the wave.
+> Status: **Phases 0–5 + Phase 6 partial + ops-polish + iOS polish + pillar-scope** (2026-05-12). All pillars functional in mock mode end-to-end — boot it, pair a phone, you have a working dashboard. Apple Dev Program path (TestFlight, App Store, APNs production sender) explicitly deferred. Polish wave: admin-token gate, initial-sync purchase-spam suppression, supplement reminder auto-firing with schedule UI, per-category quiet hours UI, sleep + overreach health detectors, SSE live-notification fanout, Anthropic token-usage telemetry, chat stream cancel + conversation rename + scope picker + inline tool-error surfacing. **7 server packages now pass tests (added `db` + `scheduler` coverage); 38 total new tests across the wave (17 polish + 21 covering migrations/filter/normalize/scheduler).**
+
+Full docs at `docs-site/` — `cd docs-site && npm install && npm run dev` for the local site.
 
 ## Workspace layout
 

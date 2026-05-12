@@ -52,15 +52,15 @@ month with realistic distributions. The Mortgage category is intentionally at
 ### Flipping to real
 
 ```ini
-SIDECAR_MODE=real
+NORTHSTAR_FINANCE_MODE=actual
 ACTUAL_SERVER_URL=https://actual.your-tailnet.ts.net
 ACTUAL_PASSWORD=…
 ACTUAL_SYNC_ID=<32-char-budget-id>
 ```
 
 The sidecar lazy-loads `@actual-app/api` on the first request and keeps a
-session warm. If the Actual server restarts, the sidecar reconnects on the next
-poll.
+session warm. Once you switch modes, the sidecar's `/init` endpoint takes the
+serverURL / password / syncId; the Go server calls it on boot.
 
 ## whoop-sidecar
 
@@ -83,7 +83,7 @@ metrics internally correlated.
 ### Flipping to real
 
 ```ini
-SIDECAR_MODE=real
+NORTHSTAR_HEALTH_MODE=real
 WHOOP_CLIENT_ID=…
 WHOOP_CLIENT_SECRET=…
 WHOOP_REFRESH_TOKEN=…

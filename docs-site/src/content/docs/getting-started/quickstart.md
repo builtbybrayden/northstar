@@ -87,8 +87,8 @@ You'll need a B2 bucket and a key pair — see [Backups](/configuration/backups/
 
 When you're ready to swap mock for real:
 
-- **Actual:** set `NORTHSTAR_FINANCE_SIDECAR_MODE=real` plus the Actual server URL and password.
-- **WHOOP:** set `NORTHSTAR_HEALTH_SIDECAR_MODE=real` plus a WHOOP client ID / refresh token.
-- **Claude:** set `NORTHSTAR_AI_MODE=anthropic` plus `NORTHSTAR_CLAUDE_API_KEY=sk-ant-…`.
+- **Actual:** set `NORTHSTAR_FINANCE_MODE=actual` on the actual-sidecar plus the Actual server URL and password.
+- **WHOOP:** set `NORTHSTAR_HEALTH_MODE=real` on the whoop-sidecar plus a WHOOP client ID / refresh token.
+- **Claude:** set `NORTHSTAR_AI_MODE=anthropic` plus `NORTHSTAR_CLAUDE_API_KEY=sk-ant-…` on the server.
 
 See [Sidecars](/configuration/sidecars/).

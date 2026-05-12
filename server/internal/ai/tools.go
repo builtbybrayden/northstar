@@ -100,6 +100,43 @@ func Defs() []toolDef {
 	return defs
 }
 
+// FilterDefsByScope narrows the tool surface to a subset of pillars. Empty
+// scope = no filter. Unknown pillar names are ignored. Always re-pins
+// cache_control to the new last entry so prompt caching stays valid for the
+// trimmed list.
+func FilterDefsByScope(defs []toolDef, scope []string) []toolDef {
+	if len(scope) == 0 {
+		return defs
+	}
+	want := map[string]bool{}
+	for _, s := range scope {
+		switch s {
+		case "finance", "goals", "health":
+			want[s] = true
+		}
+	}
+	if len(want) == 0 {
+		return defs
+	}
+	out := make([]toolDef, 0, len(defs))
+	for _, d := range defs {
+		// Reset any pre-set cache_control; we'll re-pin at the end.
+		d.CacheControl = nil
+		switch {
+		case want["finance"] && strings.HasPrefix(d.Name, "finance_"):
+			out = append(out, d)
+		case want["goals"] && strings.HasPrefix(d.Name, "goals_"):
+			out = append(out, d)
+		case want["health"] && strings.HasPrefix(d.Name, "health_"):
+			out = append(out, d)
+		}
+	}
+	if len(out) > 0 {
+		out[len(out)-1].CacheControl = &cacheControl{Type: "ephemeral"}
+	}
+	return out
+}
+
 // Dispatch executes a tool by name and returns the JSON-encoded string result.
 func (d *ToolDispatcher) Dispatch(ctx context.Context, name string, raw json.RawMessage) (string, error) {
 	switch name {

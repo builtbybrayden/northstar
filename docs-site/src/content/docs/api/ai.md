@@ -10,9 +10,27 @@ All endpoints require `Authorization: Bearer <token>`.
 | Method + path | Notes |
 |---|---|
 | `GET /api/ai/conversations` | List non-archived, ordered newest first, max 100 |
-| `POST /api/ai/conversations` | Create; optional `{title}` body |
+| `POST /api/ai/conversations` | Create; optional `{title, pillar_scope}` body |
+| `PATCH /api/ai/conversations/:id` | Update `title` and/or `pillar_scope` |
 | `DELETE /api/ai/conversations/:id` | Soft delete (archived = 1) |
 | `GET /api/ai/conversations/:id/messages` | Full message history |
+
+### `pillar_scope`
+
+An array of pillar names (`"finance"`, `"goals"`, `"health"`) that narrows
+Claude's available tools for a conversation. Empty (default) = all pillars.
+
+```json
+// Create a finance-only conversation
+POST /api/ai/conversations
+{ "title": "Subscription audit", "pillar_scope": ["finance"] }
+```
+
+The server normalizes input — unknown names dropped, dedup, sorted. When a
+scope is set, the SSE handler filters `Defs()` through `FilterDefsByScope`
+before passing to the streaming loop, so Claude literally can't call out-of-
+scope tools. Prompt caching is re-pinned on the new last tool to keep
+multi-turn chat cheap.
 
 Conversation DTO:
 

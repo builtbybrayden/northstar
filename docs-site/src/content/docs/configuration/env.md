@@ -61,19 +61,21 @@ These belong to the sidecar processes, not the Go server:
 
 | Var | Default | Notes |
 |---|---|---|
-| `SIDECAR_MODE` | `mock` | `real` switches to `@actual-app/api` |
-| `SIDECAR_LISTEN` | `127.0.0.1:9090` | Override in compose |
-| `SIDECAR_SHARED_SECRET` | *(empty)* | Optional bearer match with the server |
-| `ACTUAL_SERVER_URL` | — | Required in real mode |
-| `ACTUAL_PASSWORD` | — | Required in real mode |
+| `NORTHSTAR_FINANCE_MODE` | `mock` | `actual` switches to `@actual-app/api` |
+| `SIDECAR_HOST` | `127.0.0.1` | Override in compose |
+| `SIDECAR_PORT` | `9090` | |
+| `SIDECAR_SHARED_SECRET` | *(empty)* | Optional shared bearer with the server |
+| `ACTUAL_SERVER_URL` | — | Required in `actual` mode (or POST to `/init`) |
+| `ACTUAL_PASSWORD` | — | Required in `actual` mode |
 | `ACTUAL_SYNC_ID` | — | The 32-char budget ID from Actual settings |
 
 ### whoop-sidecar
 
 | Var | Default | Notes |
 |---|---|---|
-| `SIDECAR_MODE` | `mock` | `real` switches to WHOOP v2 API |
-| `SIDECAR_LISTEN` | `127.0.0.1:9091` | |
+| `NORTHSTAR_HEALTH_MODE` | `mock` | `real` switches to WHOOP v2 API |
+| `SIDECAR_HOST` | `127.0.0.1` | |
+| `SIDECAR_PORT` | `9091` | |
 | `SIDECAR_SHARED_SECRET` | *(empty)* | |
 | `WHOOP_CLIENT_ID` | — | Required in real mode |
 | `WHOOP_CLIENT_SECRET` | — | Required in real mode |
