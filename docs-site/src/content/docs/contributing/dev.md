@@ -85,7 +85,7 @@ open Northstar.xcodeproj
 Set the team under Signing & Capabilities. The app uses no APNs entitlement
 in dev — push registration silently no-ops without one.
 
-For Windows hosts, see [docs/WINDOWS-IOS-DEV.md](https://github.com/brayden/northstar/blob/main/docs/WINDOWS-IOS-DEV.md)
+For Windows hosts, see [docs/WINDOWS-IOS-DEV.md](https://github.com/builtbybrayden/northstar/blob/main/docs/WINDOWS-IOS-DEV.md)
 for a workflow that uses GitHub Actions macOS runners as the build cluster.
 
 ## End-to-end smoke

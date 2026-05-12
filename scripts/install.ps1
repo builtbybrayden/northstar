@@ -1,13 +1,13 @@
 # Northstar — one-shot installer (PowerShell)
 #
 # Usage:
-#   iwr -useb https://raw.githubusercontent.com/brayden/northstar/main/scripts/install.ps1 | iex
+#   iwr -useb https://raw.githubusercontent.com/builtbybrayden/northstar/main/scripts/install.ps1 | iex
 #
 # Same flow as scripts/install.sh, adapted for PowerShell + Docker Desktop.
 
 $ErrorActionPreference = "Stop"
 
-$Repo = if ($env:NORTHSTAR_REPO) { $env:NORTHSTAR_REPO } else { "brayden/northstar" }
+$Repo = if ($env:NORTHSTAR_REPO) { $env:NORTHSTAR_REPO } else { "builtbybrayden/northstar" }
 $Ref  = if ($env:NORTHSTAR_REF)  { $env:NORTHSTAR_REF }  else { "main" }
 $Root = if ($env:NORTHSTAR_HOME) { $env:NORTHSTAR_HOME } else { Join-Path $HOME ".northstar" }
 $Raw  = "https://raw.githubusercontent.com/$Repo/$Ref"

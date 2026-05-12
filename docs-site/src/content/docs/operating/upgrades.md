@@ -62,4 +62,4 @@ Once the TestFlight pipeline is live, upgrades will come over the air.
 | 7 — Multi-user / family accounts | deferred |
 | 7 — Receipt OCR / investment portfolio view | deferred |
 
-Public GitHub Projects board: [`brayden/northstar` → Projects](https://github.com/brayden/northstar/projects).
+Public GitHub Projects board: [`builtbybrayden/northstar` → Projects](https://github.com/builtbybrayden/northstar/projects).

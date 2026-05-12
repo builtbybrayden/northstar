@@ -29,7 +29,7 @@ ones are fetched. The data volume is never touched.
 
 | Var | Default | Notes |
 |---|---|---|
-| `NORTHSTAR_REPO` | `brayden/northstar` | For forks |
+| `NORTHSTAR_REPO` | `builtbybrayden/northstar` | For forks |
 | `NORTHSTAR_REF`  | `main` | Use a tag (`v1.0.0`) for reproducible installs |
 | `NORTHSTAR_HOME` | `~/.northstar` | Install root |
 
@@ -37,7 +37,7 @@ Example: pin to a release tag
 
 ```sh
 NORTHSTAR_REF=v1.0.0 \
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/brayden/northstar/v1.0.0/scripts/install.sh)"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/builtbybrayden/northstar/v1.0.0/scripts/install.sh)"
 ```
 
 ## Uninstall

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/brayden/northstar-server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
 )
 
 // Detector fires health_insight notifications for biometric red flags.

@@ -62,5 +62,5 @@ is intended to be made on a trusted LAN.
 
 ## Disclosure
 
-See [SECURITY.md](https://github.com/brayden/northstar/blob/main/SECURITY.md) for
+See [SECURITY.md](https://github.com/builtbybrayden/northstar/blob/main/SECURITY.md) for
 the vulnerability disclosure process.

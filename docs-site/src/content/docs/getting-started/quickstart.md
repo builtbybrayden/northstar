@@ -17,7 +17,7 @@ real services.
 ## 1. Clone the repo
 
 ```sh
-git clone https://github.com/brayden/northstar.git
+git clone https://github.com/builtbybrayden/northstar.git
 cd northstar
 ```
 

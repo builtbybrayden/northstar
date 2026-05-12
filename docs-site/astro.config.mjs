@@ -9,10 +9,10 @@ export default defineConfig({
       description:
         "Self-hosted iOS life dashboard — Actual finance + native goals + WHOOP biometrics with a Claude tool-use chat layer.",
       social: [
-        { icon: "github", label: "GitHub", href: "https://github.com/brayden/northstar" },
+        { icon: "github", label: "GitHub", href: "https://github.com/builtbybrayden/northstar" },
       ],
       editLink: {
-        baseUrl: "https://github.com/brayden/northstar/edit/main/docs-site/",
+        baseUrl: "https://github.com/builtbybrayden/northstar/edit/main/docs-site/",
       },
       sidebar: [
         {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brayden/northstar-server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
 	_ "modernc.org/sqlite"
 )
 

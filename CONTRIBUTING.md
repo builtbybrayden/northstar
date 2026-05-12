@@ -33,7 +33,7 @@ before writing code.
 
 ## Sending a PR
 
-1. Fork + branch (`brayden/northstar`).
+1. Fork + branch (`builtbybrayden/northstar`).
 2. Run the tests (`cd server && go test ./...`).
 3. For iOS changes: confirm Xcode builds clean and the affected pillar still functions in the simulator.
 4. Open a PR against `main`. Include a screenshot if there's a UI change.
@@ -41,7 +41,7 @@ before writing code.
 
 ## Style
 
-Per-language conventions are in the [Style guide](https://github.com/brayden/northstar/blob/main/docs-site/src/content/docs/contributing/style.md).
+Per-language conventions are in the [Style guide](https://github.com/builtbybrayden/northstar/blob/main/docs-site/src/content/docs/contributing/style.md).
 Highlights:
 
 - Go: `gofmt` + `goimports`, error wrapping, no global state

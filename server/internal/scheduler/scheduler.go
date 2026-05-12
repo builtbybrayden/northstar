@@ -16,9 +16,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/brayden/northstar-server/internal/goals"
-	"github.com/brayden/northstar-server/internal/health"
-	"github.com/brayden/northstar-server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/goals"
+	"github.com/builtbybrayden/northstar/server/internal/health"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
 )
 
 type Scheduler struct {

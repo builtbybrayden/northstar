@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brayden/northstar-server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
 )
 
 // SupplementSchedule is the shape persisted in health_supplement_defs.schedule_json.

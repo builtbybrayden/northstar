@@ -10,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/brayden/northstar-server/internal/api"
-	"github.com/brayden/northstar-server/internal/config"
-	"github.com/brayden/northstar-server/internal/db"
-	"github.com/brayden/northstar-server/internal/finance"
-	"github.com/brayden/northstar-server/internal/goals"
-	"github.com/brayden/northstar-server/internal/health"
-	"github.com/brayden/northstar-server/internal/notify"
-	"github.com/brayden/northstar-server/internal/scheduler"
+	"github.com/builtbybrayden/northstar/server/internal/api"
+	"github.com/builtbybrayden/northstar/server/internal/config"
+	"github.com/builtbybrayden/northstar/server/internal/db"
+	"github.com/builtbybrayden/northstar/server/internal/finance"
+	"github.com/builtbybrayden/northstar/server/internal/goals"
+	"github.com/builtbybrayden/northstar/server/internal/health"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/scheduler"
 )
 
 func main() {

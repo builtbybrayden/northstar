@@ -10,7 +10,7 @@ the end.
 ## Linux / macOS
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/brayden/northstar/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/builtbybrayden/northstar/main/scripts/install.sh | bash
 ```
 
 What it does:
@@ -22,12 +22,12 @@ What it does:
 5. Mints a fresh pairing code and prints the QR-coded URL.
 
 The script is short and auditable — read it first if that's your style:
-[`scripts/install.sh`](https://github.com/brayden/northstar/blob/main/scripts/install.sh).
+[`scripts/install.sh`](https://github.com/builtbybrayden/northstar/blob/main/scripts/install.sh).
 
 ## Windows (PowerShell)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/brayden/northstar/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/builtbybrayden/northstar/main/scripts/install.ps1 | iex
 ```
 
 Same flow as the bash version, adapted for PowerShell + Docker Desktop.

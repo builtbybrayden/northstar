@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/brayden/northstar-server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
 )
 
 // Detector inspects new transactions during sync and fires notifications

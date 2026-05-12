@@ -16,13 +16,13 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 
-	"github.com/brayden/northstar-server/internal/ai"
-	"github.com/brayden/northstar-server/internal/auth"
-	"github.com/brayden/northstar-server/internal/config"
-	"github.com/brayden/northstar-server/internal/finance"
-	"github.com/brayden/northstar-server/internal/goals"
-	"github.com/brayden/northstar-server/internal/health"
-	"github.com/brayden/northstar-server/internal/notify"
+	"github.com/builtbybrayden/northstar/server/internal/ai"
+	"github.com/builtbybrayden/northstar/server/internal/auth"
+	"github.com/builtbybrayden/northstar/server/internal/config"
+	"github.com/builtbybrayden/northstar/server/internal/finance"
+	"github.com/builtbybrayden/northstar/server/internal/goals"
+	"github.com/builtbybrayden/northstar/server/internal/health"
+	"github.com/builtbybrayden/northstar/server/internal/notify"
 )
 
 type Server struct {

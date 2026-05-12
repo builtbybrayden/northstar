@@ -3,7 +3,7 @@
 # Northstar — one-shot installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/brayden/northstar/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/builtbybrayden/northstar/main/scripts/install.sh | bash
 #
 # What it does:
 #   1. Verifies Docker + Docker Compose are available.
@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-REPO="${NORTHSTAR_REPO:-brayden/northstar}"
+REPO="${NORTHSTAR_REPO:-builtbybrayden/northstar}"
 REF="${NORTHSTAR_REF:-main}"
 ROOT="${NORTHSTAR_HOME:-$HOME/.northstar}"
 RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
