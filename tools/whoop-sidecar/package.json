@@ -1,0 +1,13 @@
+{
+  "name": "northstar-whoop-sidecar",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "HTTP gateway that exposes WHOOP biometrics (recovery, sleep, strain) to the Go server. Mock mode default; real mode uses WHOOP OAuth2 v2 API.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "mock": "NORTHSTAR_HEALTH_MODE=mock node src/server.js"
+  },
+  "engines": { "node": ">=20" }
+}

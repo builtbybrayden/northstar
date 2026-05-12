@@ -1,0 +1,18 @@
+{
+  "name": "northstar-actual-sidecar",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Long-lived HTTP gateway that exposes Actual Budget data to the Go server. Supports mock mode for dev without a real Actual instance.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "mock": "NORTHSTAR_FINANCE_MODE=mock node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@actual-app/api": "^25.1.0"
+  }
+}

@@ -1,0 +1,20 @@
+# Local config + state
+.env
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Build artifacts
+/bin/
+*.exe
+
+# Go tooling
+/vendor/
+*.test
+*.out
+go.work
+
+# IDE
+.idea/
+.vscode/

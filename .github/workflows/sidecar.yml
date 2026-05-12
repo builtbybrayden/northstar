@@ -1,0 +1,47 @@
+name: Sidecar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/actual-sidecar/**'
+      - '.github/workflows/sidecar.yml'
+  pull_request:
+    paths:
+      - 'tools/actual-sidecar/**'
+      - '.github/workflows/sidecar.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: tools/actual-sidecar
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tools/actual-sidecar/package-lock.json
+
+      - name: Install dependencies (best-effort — mock mode works without them)
+        run: npm install --no-audit --no-fund || true
+
+      - name: Boot in mock mode and probe
+        env:
+          NORTHSTAR_FINANCE_MODE: mock
+          SIDECAR_PORT: 19090
+        run: |
+          node src/server.js &
+          PID=$!
+          for i in {1..15}; do
+            if curl -sf http://127.0.0.1:19090/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:19090/health
+          curl -sf http://127.0.0.1:19090/accounts | head -c 200
+          kill $PID

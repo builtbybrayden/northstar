@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Northstar — UI Concepts</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="page-header">
+  <h1 class="page-title">Northstar</h1>
+  <p class="page-sub">A self-hosted iOS app that ties your finance (Actual Budget), goals (Notion), and biometrics (WHOOP) into one decision surface — with Claude as a cross-pillar brain. These are static concepts of the v1 screens.</p>
+  <p class="page-sub" style="margin-top: 16px; font-size: 14px; color: #555;">Locked decisions (2026-05-12): name <b style="color:#888;">Northstar</b> · Go server · SQLite + Litestream · MIT both repos · TestFlight day-1 · Goals are native (no Notion runtime dependency; one-time seed-import CLI for personal use).</p>
+</div>
+
+<div class="section-rule"><h2>Core flow</h2><div class="line"></div></div>
+
+<div class="gallery">
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 1 — HOME / TODAY
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <div class="scroll">
+          <div class="header-row">
+            <div>
+              <div class="greet">Tuesday, May 12</div>
+              <div class="name">Good morning, Brayden</div>
+            </div>
+            <div class="avatar">BA</div>
+          </div>
+
+          <div class="today-hero">
+            <div class="date">Today's call</div>
+            <div class="verdict"><span class="accent">Push hard</span> today.</div>
+            <div class="sub">Recovery is at 84%. You're ahead on the Restaurants budget. The Bykea writeup is the only blocker on this week's Output Log.</div>
+          </div>
+
+          <div class="pillar-grid">
+            <div class="pillar-card">
+              <div class="ic finance">$</div>
+              <div class="pl-label">May spend</div>
+              <div class="pl-val">$2,847</div>
+              <div class="pl-sub">62% of $4,600 budget</div>
+            </div>
+            <div class="pillar-card">
+              <div class="ic health">♥</div>
+              <div class="pl-label">Recovery</div>
+              <div class="pl-val" style="color: var(--health-go)">84%</div>
+              <div class="pl-sub">HRV 78ms · RHR 51</div>
+            </div>
+            <div class="pillar-card">
+              <div class="ic goals">★</div>
+              <div class="pl-label">Today</div>
+              <div class="pl-val">3 / 5</div>
+              <div class="pl-sub">2 tasks left · 11-day streak</div>
+            </div>
+            <div class="pillar-card">
+              <div class="ic ai">⌘</div>
+              <div class="pl-label">OSCP eta</div>
+              <div class="pl-val">11 mo</div>
+              <div class="pl-sub">On track for Apr 2027</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">Today's brief <span class="pill">5 tasks</span></div>
+            <div class="todo-row done">
+              <div class="check done">✓</div>
+              <div class="text">Daily Log entry<small>Notion · Daily Log</small></div>
+            </div>
+            <div class="todo-row done">
+              <div class="check done">✓</div>
+              <div class="text">30 min PortSwigger Web Academy<small>Goal: BSCP path</small></div>
+            </div>
+            <div class="todo-row done">
+              <div class="check done">✓</div>
+              <div class="text">NAD+ supplement<small>7:00 AM · taken</small></div>
+            </div>
+            <div class="todo-row">
+              <div class="check"></div>
+              <div class="text">Finish Bykea writeup<small>Output Log · Week 19</small></div>
+            </div>
+            <div class="todo-row">
+              <div class="check"></div>
+              <div class="text">Ship one Python tool commit<small>Coding track · Year 1</small></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">Recent activity</div>
+            <div class="row">
+              <div class="l"><div class="icon">☕</div>
+                <div class="t">Starbucks #4318<small>Restaurants · 8 min ago</small></div></div>
+              <div class="v dn">−$7.45</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon">♥</div>
+                <div class="t">Sleep logged<small>7h 42m · score 88</small></div></div>
+              <div class="v up">+6 pts</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon">★</div>
+                <div class="t">Milestone updated<small>Notion · "Book OSCP exam"</small></div></div>
+              <div class="v" style="color: var(--goals)">In progress</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab active"><div class="ic">⌂</div>Home</div>
+          <div class="tab"><div class="ic">$</div>Finance</div>
+          <div class="tab"><div class="ic">★</div>Goals</div>
+          <div class="tab"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">1 · Home<small>Daily verdict + cross-pillar snapshot</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 2 — FINANCE OVERVIEW
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <div class="scroll">
+          <div class="header-row">
+            <div class="name" style="font-size: 22px;">Finance</div>
+            <div style="color: var(--text-3); font-size: 13px;">May 2026</div>
+          </div>
+
+          <div class="balance-card">
+            <div class="label">NET WORTH</div>
+            <div class="amt">$284,419</div>
+            <div class="delta">
+              <span class="item"><span class="v up">+$1,283</span> · 30d</span>
+              <span class="item"><span class="v up">+$12,847</span> · YTD</span>
+            </div>
+          </div>
+
+          <div class="ring-grid">
+            <div class="ring-card">
+              <div class="ring">
+                <svg width="70" height="70" viewBox="0 0 70 70">
+                  <circle cx="35" cy="35" r="30" stroke="#2a2a2a" stroke-width="6" fill="none"/>
+                  <circle cx="35" cy="35" r="30" stroke="var(--finance)" stroke-width="6" fill="none"
+                    stroke-dasharray="188.5" stroke-dashoffset="71.6" stroke-linecap="round"/>
+                </svg>
+                <div class="pct">62%</div>
+              </div>
+              <div class="rl-name">Spent</div>
+              <div class="rl-sub">$2,847 / $4,600</div>
+            </div>
+            <div class="ring-card">
+              <div class="ring">
+                <svg width="70" height="70" viewBox="0 0 70 70">
+                  <circle cx="35" cy="35" r="30" stroke="#2a2a2a" stroke-width="6" fill="none"/>
+                  <circle cx="35" cy="35" r="30" stroke="#5E5CE6" stroke-width="6" fill="none"
+                    stroke-dasharray="188.5" stroke-dashoffset="56.6" stroke-linecap="round"/>
+                </svg>
+                <div class="pct">70%</div>
+              </div>
+              <div class="rl-name">Saved</div>
+              <div class="rl-sub">$1,820 / $2,600</div>
+            </div>
+            <div class="ring-card">
+              <div class="ring">
+                <svg width="70" height="70" viewBox="0 0 70 70">
+                  <circle cx="35" cy="35" r="30" stroke="#2a2a2a" stroke-width="6" fill="none"/>
+                  <circle cx="35" cy="35" r="30" stroke="var(--health-mid)" stroke-width="6" fill="none"
+                    stroke-dasharray="188.5" stroke-dashoffset="32" stroke-linecap="round"/>
+                </svg>
+                <div class="pct">83%</div>
+              </div>
+              <div class="rl-name">Income</div>
+              <div class="rl-sub">$5,401 / $6,500</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">By category <span class="pill">May · so far</span></div>
+            <div class="budget-bar">
+              <div class="bbar-row">
+                <div class="head"><span class="name">🍽 Restaurants</span><span class="val">$612 <span class="of">/ $500</span></span></div>
+                <div class="track"><div class="fill bad" style="width: 100%"></div></div>
+              </div>
+              <div class="bbar-row">
+                <div class="head"><span class="name">🛒 Groceries</span><span class="val">$427 <span class="of">/ $700</span></span></div>
+                <div class="track"><div class="fill ok" style="width: 61%"></div></div>
+              </div>
+              <div class="bbar-row">
+                <div class="head"><span class="name">⛽ Gas</span><span class="val">$178 <span class="of">/ $260</span></span></div>
+                <div class="track"><div class="fill ok" style="width: 68%"></div></div>
+              </div>
+              <div class="bbar-row">
+                <div class="head"><span class="name">🏠 Mortgage</span><span class="val">$2,005 <span class="of">/ $2,005</span></span></div>
+                <div class="track"><div class="fill ok" style="width: 100%"></div></div>
+              </div>
+              <div class="bbar-row">
+                <div class="head"><span class="name">💡 Utilities</span><span class="val">$143 <span class="of">/ $220</span></span></div>
+                <div class="track"><div class="fill ok" style="width: 65%"></div></div>
+              </div>
+              <div class="bbar-row">
+                <div class="head"><span class="name">📺 Subscriptions</span><span class="val">$93 <span class="of">/ $90</span></span></div>
+                <div class="track"><div class="fill warn" style="width: 100%"></div></div>
+              </div>
+              <div class="bbar-row">
+                <div class="head"><span class="name">✈ Travel</span><span class="val">$0 <span class="of">/ $300</span></span></div>
+                <div class="track"><div class="fill ok" style="width: 0%"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><div class="ic">⌂</div>Home</div>
+          <div class="tab active"><div class="ic">$</div>Finance</div>
+          <div class="tab"><div class="ic">★</div>Goals</div>
+          <div class="tab"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">2 · Finance<small>Rings + per-category budget bars</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 3 — FINANCE: CATEGORY DRILL
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <div class="scroll">
+          <div class="drill-back"><span class="ar">‹</span> Finance</div>
+
+          <div class="drill-hero">
+            <div class="ctg">
+              <div class="ic-big">🍽</div>
+              <div>
+                <div class="nm">Restaurants</div>
+                <div class="pace">22% over budget · 17 days in</div>
+              </div>
+            </div>
+            <div class="amt-row">
+              <span class="amt dn">$612</span>
+              <span class="of">of $500 monthly</span>
+            </div>
+            <div class="threshold-track">
+              <div class="track"><div class="fill" style="width: 100%"></div></div>
+              <div class="ticks">
+                <span>50%</span><span>75%</span><span>90%</span><span>100% ⚠</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">12-month trend</div>
+            <div class="bars-month">
+              <div class="col"><div class="bar" style="height: 30%"></div><div class="lbl">Jun</div></div>
+              <div class="col"><div class="bar" style="height: 45%"></div><div class="lbl">Jul</div></div>
+              <div class="col"><div class="bar" style="height: 38%"></div><div class="lbl">Aug</div></div>
+              <div class="col"><div class="bar" style="height: 50%"></div><div class="lbl">Sep</div></div>
+              <div class="col"><div class="bar" style="height: 42%"></div><div class="lbl">Oct</div></div>
+              <div class="col"><div class="bar" style="height: 55%"></div><div class="lbl">Nov</div></div>
+              <div class="col"><div class="bar" style="height: 75%"></div><div class="lbl">Dec</div></div>
+              <div class="col"><div class="bar" style="height: 48%"></div><div class="lbl">Jan</div></div>
+              <div class="col"><div class="bar" style="height: 60%"></div><div class="lbl">Feb</div></div>
+              <div class="col"><div class="bar" style="height: 52%"></div><div class="lbl">Mar</div></div>
+              <div class="col"><div class="bar" style="height: 70%"></div><div class="lbl">Apr</div></div>
+              <div class="col now"><div class="bar" style="height: 95%"></div><div class="lbl">May</div></div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-3); padding: 4px 4px 0;">Highest month in the last year. Avg $478/mo.</div>
+          </div>
+
+          <div class="card">
+            <div class="label">Transactions <span class="pill">11 this month</span></div>
+            <div class="row">
+              <div class="l"><div class="icon">☕</div>
+                <div class="t">Starbucks #4318<small>Today · 8:33 AM</small></div></div>
+              <div class="v dn">−$7.45</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon">🥡</div>
+                <div class="t">DoorDash · Mei Wei<small>Sun · May 10</small></div></div>
+              <div class="v dn">−$34.18</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon">🍕</div>
+                <div class="t">Antico Pizza<small>Fri · May 8</small></div></div>
+              <div class="v dn">−$58.40</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon">🥩</div>
+                <div class="t">Cooks &amp; Soldiers<small>Wed · May 6 · with fiancée</small></div></div>
+              <div class="v dn">−$148.92</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon">☕</div>
+                <div class="t">Starbucks #4318<small>Tue · May 5</small></div></div>
+              <div class="v dn">−$7.45</div>
+            </div>
+          </div>
+
+          <div class="card" style="background: rgba(255,159,10,0.06); border: 1px solid rgba(255,159,10,0.15);">
+            <div class="label" style="color: var(--ai);">⌘ Claude insight</div>
+            <div style="font-size: 13px; line-height: 1.5; color: var(--text-2);">Dining is up 47% from the rolling 6-mo average. Two-thirds is delivery — DoorDash is your biggest jump (12 orders YTD vs. 5 same period last year). One delivery cut per week saves ~$130/mo.</div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><div class="ic">⌂</div>Home</div>
+          <div class="tab active"><div class="ic">$</div>Finance</div>
+          <div class="tab"><div class="ic">★</div>Goals</div>
+          <div class="tab"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">3 · Category drill<small>Threshold gauge · history · Claude insight</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 4 — GOALS
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <div class="scroll">
+          <div class="header-row">
+            <div class="name" style="font-size: 22px;">Goals</div>
+            <span class="streak-pill">🔥 11-day streak</span>
+          </div>
+
+          <div class="goal-hero">
+            <div class="lbl">FLAGSHIP MILESTONE</div>
+            <h2>OSCP — pass by April 2027</h2>
+            <div class="meta">11 months · book exam by 2026-05-11</div>
+            <div class="progress"><div class="fill" style="width: 28%"></div></div>
+            <div class="pct-line"><span>28% — exam booked, lab 24 / 90</span><span>on track</span></div>
+          </div>
+
+          <div class="card">
+            <div class="label">Today's brief <span class="pill">3 / 5 done</span></div>
+            <div class="todo-row done">
+              <div class="check done">✓</div>
+              <div class="text">Daily Log entry<small>Notion · Daily Log</small></div>
+            </div>
+            <div class="todo-row done">
+              <div class="check done">✓</div>
+              <div class="text">30 min PortSwigger Web Academy<small>Path · BSCP refresher</small></div>
+            </div>
+            <div class="todo-row done">
+              <div class="check done">✓</div>
+              <div class="text">NAD+ + creatine<small>7:00 AM</small></div>
+            </div>
+            <div class="todo-row">
+              <div class="check"></div>
+              <div class="text">Finish Bykea writeup<small>Output Log · Week 19</small></div>
+            </div>
+            <div class="todo-row">
+              <div class="check"></div>
+              <div class="text">Ship one Python tool commit<small>Coding track</small></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">Long-term horizon</div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(94,92,230,0.15); color: var(--goals);">★</div>
+                <div class="t">Senior offer<small>Target 2027-05 · TC $150–180k</small></div></div>
+              <div class="v" style="color: var(--goals);">12 mo</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(94,92,230,0.15); color: var(--goals);">★</div>
+                <div class="t">First CVE submitted<small>Target 2027-01-31</small></div></div>
+              <div class="v" style="color: var(--goals);">9 mo</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(94,92,230,0.15); color: var(--goals);">★</div>
+                <div class="t">First CFP submitted<small>Target 2026-10-31</small></div></div>
+              <div class="v" style="color: var(--goals);">5 mo</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(94,92,230,0.15); color: var(--goals);">★</div>
+                <div class="t">Decision gate<small>Path A vs B · 2031-05-04</small></div></div>
+              <div class="v" style="color: var(--goals);">5 yr</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">This week <span class="pill">Week 19 of 52</span></div>
+            <div style="display: flex; gap: 6px; padding: 4px 0;">
+              <div style="flex:1; height: 36px; background: var(--goals); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">M</div>
+              <div style="flex:1; height: 36px; background: var(--goals); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">T</div>
+              <div style="flex:1; height: 36px; background: var(--surface-hi); border: 1px solid var(--goals); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">W</div>
+              <div style="flex:1; height: 36px; background: var(--surface-hi); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-3);">T</div>
+              <div style="flex:1; height: 36px; background: var(--surface-hi); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-3);">F</div>
+              <div style="flex:1; height: 36px; background: var(--surface-hi); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-3);">S</div>
+              <div style="flex:1; height: 36px; background: var(--surface-hi); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-3);">S</div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-3); padding-top: 8px;">Theme: Bug Bounty backlog clearance + Python tool ship</div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><div class="ic">⌂</div>Home</div>
+          <div class="tab"><div class="ic">$</div>Finance</div>
+          <div class="tab active"><div class="ic">★</div>Goals</div>
+          <div class="tab"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">4 · Goals<small>OSCP flagship · today's tasks · long-horizon</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 5 — HEALTH
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <div class="scroll">
+          <div class="header-row">
+            <div class="name" style="font-size: 22px;">Health</div>
+            <div style="color: var(--text-3); font-size: 13px;">WHOOP · 9 min ago</div>
+          </div>
+
+          <div class="recovery-hero">
+            <div class="recovery-dial">
+              <svg width="180" height="180" viewBox="0 0 180 180">
+                <circle cx="90" cy="90" r="78" stroke="#1a1a1a" stroke-width="14" fill="none"/>
+                <circle cx="90" cy="90" r="78" stroke="var(--health-go)" stroke-width="14" fill="none"
+                  stroke-dasharray="490" stroke-dashoffset="78.4" stroke-linecap="round"/>
+              </svg>
+              <div class="num">
+                <div class="big">84</div>
+                <div class="lbl">% Recovered</div>
+              </div>
+            </div>
+            <div class="verdict" style="color: var(--health-go);">Green — push hard</div>
+            <div class="sub">Your body is primed. Strain target today: 16.0–18.5.</div>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric-card">
+              <div class="lbl">HRV</div>
+              <div class="v">78<small>ms</small></div>
+              <div class="d" style="color: var(--health-go);">▲ 12%</div>
+            </div>
+            <div class="metric-card">
+              <div class="lbl">RHR</div>
+              <div class="v">51<small>bpm</small></div>
+              <div class="d" style="color: var(--health-go);">▼ 2</div>
+            </div>
+            <div class="metric-card">
+              <div class="lbl">Sleep</div>
+              <div class="v">7:42</div>
+              <div class="d" style="color: var(--health-go);">88% score</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">7-day recovery</div>
+            <div class="spark">
+              <div class="b" style="height: 65%;"></div>
+              <div class="b" style="height: 45%; background: var(--health-mid); opacity: 0.7;"></div>
+              <div class="b" style="height: 30%; background: var(--health-stop); opacity: 0.7;"></div>
+              <div class="b" style="height: 55%;"></div>
+              <div class="b" style="height: 70%;"></div>
+              <div class="b" style="height: 78%;"></div>
+              <div class="b" style="height: 85%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-3); padding-top: 6px;">
+              <span>W</span><span>T</span><span>F</span><span>S</span><span>S</span><span>M</span><span>Today</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">Supplements & peptides <span class="pill">3 of 5 today</span></div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(0,182,255,0.15); color: var(--health-blue);">💊</div>
+                <div class="t">NAD+ <small>500mg · 7:00 AM · taken</small></div></div>
+              <div class="v" style="color: var(--health-go); font-size: 13px;">✓</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(0,182,255,0.15); color: var(--health-blue);">💊</div>
+                <div class="t">Creatine 5g <small>7:00 AM · taken</small></div></div>
+              <div class="v" style="color: var(--health-go); font-size: 13px;">✓</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(255,159,10,0.15); color: var(--ai);">⚗</div>
+                <div class="t">BPC-157 <small>250mcg SQ · cycle day 4/14</small></div></div>
+              <div class="v" style="color: var(--health-go); font-size: 13px;">✓</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(0,182,255,0.15); color: var(--health-blue);">💊</div>
+                <div class="t">Magnesium glycinate <small>9:30 PM · pending</small></div></div>
+              <div class="v" style="color: var(--text-3); font-size: 13px;">in 12h</div>
+            </div>
+            <div class="row">
+              <div class="l"><div class="icon" style="background: rgba(0,182,255,0.15); color: var(--health-blue);">💊</div>
+                <div class="t">Omega-3 <small>With dinner · pending</small></div></div>
+              <div class="v" style="color: var(--text-3); font-size: 13px;">in 8h</div>
+            </div>
+          </div>
+
+          <div class="card" style="background: rgba(22,236,6,0.06); border: 1px solid rgba(22,236,6,0.15);">
+            <div class="label" style="color: var(--health-go);">⌘ Claude insight</div>
+            <div style="font-size: 13px; line-height: 1.5; color: var(--text-2);">Recovery has climbed 19 pts since you cycled off the late-night caffeine. BPC cycle days 3–5 are historically your best HRV window — push compound lifts today.</div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><div class="ic">⌂</div>Home</div>
+          <div class="tab"><div class="ic">$</div>Finance</div>
+          <div class="tab"><div class="ic">★</div>Goals</div>
+          <div class="tab active"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">5 · Health<small>WHOOP recovery dial + supplement log</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 6 — ASK CLAUDE
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen" style="padding-top: 54px;">
+        <div class="chat-header">
+          <div class="av">C</div>
+          <div class="ct">Claude<small>● Connected · 3 pillars synced</small></div>
+        </div>
+
+        <div class="chat-stream">
+          <div class="bubble me">Should I push hard today?</div>
+
+          <div class="tool-call"><span class="dot"></span> Reading recovery · sleep · last 3 days of strain</div>
+          <div class="tool-call"><span class="dot"></span> Cross-checking supplement log</div>
+
+          <div class="bubble ai">
+            <b>Yes — push.</b><br><br>
+            Recovery is 84% (top decile for you), HRV climbed 12% to 78ms, RHR is 51 (your 30-day low), and sleep was 7h 42m with an 88 score. You're also on BPC cycle day 4, which historically tracks with your best lift sessions.<br><br>
+            Suggested strain target: <b>16.0 – 18.5</b>. Good day for compound lifts. Save HIIT for tomorrow if you want a sleep-quality test against this morning's HRV baseline.
+            <div class="src">
+              <span class="chip">health_get_recovery</span>
+              <span class="chip">health_supplement_cycle</span>
+              <span class="chip">strain_history(7d)</span>
+            </div>
+          </div>
+
+          <div class="bubble me">And budget-wise — am I clear to grab dinner out with Iris?</div>
+
+          <div class="tool-call"><span class="dot"></span> Checking Restaurants category</div>
+
+          <div class="bubble ai">
+            <b>Skip the splurge — you're 22% over.</b><br><br>
+            Restaurants is at $612 of a $500 budget, 17 days into the month. Your last 3 dining-outs averaged $80; another would put you 38% over.<br><br>
+            Cheap rec: cook in (Groceries is 39% under pace at $427 of $700). Or split the cost across the budget category and tomorrow's lunch and call it even.
+            <div class="src">
+              <span class="chip">finance_category("Restaurants")</span>
+              <span class="chip">budget_pace</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="quick-prompts">
+          <div class="qp">Am I on track for OSCP?</div>
+          <div class="qp">Best HRV-correlated supplements</div>
+          <div class="qp">Week's biggest spend driver</div>
+          <div class="qp">What did I miss yesterday?</div>
+        </div>
+        <div class="composer">
+          <input placeholder="Ask anything about your life…">
+          <div class="send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">6 · Ask Claude<small>Tool-augmented · grounded in your data</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 7 — LOCK SCREEN NOTIFICATIONS
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="screen" style="padding: 0;">
+        <div class="lock-screen">
+          <div class="lock-time">9:41</div>
+          <div class="lock-date">Tuesday, May 12</div>
+
+          <div class="notif-stack">
+            <div class="notif">
+              <div class="ic finance">$</div>
+              <div class="body">
+                <div class="top"><span>COMPASS · FINANCE</span><span class="ago">now</span></div>
+                <div class="title">Starbucks  −$7.45</div>
+                <div class="msg">Restaurants now $612 of $500 (122%). Tap to see the month.</div>
+              </div>
+            </div>
+
+            <div class="notif">
+              <div class="ic bad">⚠</div>
+              <div class="body">
+                <div class="top"><span>COMPASS · BUDGET ALERT</span><span class="ago">2 min</span></div>
+                <div class="title">Restaurants over 100%</div>
+                <div class="msg">You crossed the monthly cap with 13 days to go. Suggested: pause delivery the rest of the week.</div>
+              </div>
+            </div>
+
+            <div class="notif">
+              <div class="ic health">♥</div>
+              <div class="body">
+                <div class="top"><span>COMPASS · HEALTH</span><span class="ago">14 min</span></div>
+                <div class="title">Recovery: 84% — green</div>
+                <div class="msg">HRV ▲12% to 78ms. Push day. Strain target 16.0–18.5.</div>
+              </div>
+            </div>
+
+            <div class="notif">
+              <div class="ic goals">★</div>
+              <div class="body">
+                <div class="top"><span>COMPASS · DAILY BRIEF</span><span class="ago">1h</span></div>
+                <div class="title">5 tasks for today</div>
+                <div class="msg">Finish Bykea writeup · 30 min PortSwigger · ship Python commit · NAD+ · Daily Log.</div>
+              </div>
+            </div>
+
+            <div class="notif">
+              <div class="ic ai">⌘</div>
+              <div class="body">
+                <div class="top"><span>COMPASS · INSIGHT</span><span class="ago">3h</span></div>
+                <div class="title">New recurring charge detected</div>
+                <div class="msg">Anthropic ($20.00) — third month in a row. Tap to add as a subscription.</div>
+              </div>
+            </div>
+
+            <div class="notif">
+              <div class="ic health">⚗</div>
+              <div class="body">
+                <div class="top"><span>COMPASS · SUPPLEMENT</span><span class="ago">7:00</span></div>
+                <div class="title">NAD+  ·  Creatine 5g</div>
+                <div class="msg">Morning stack. BPC-157 day 4/14 — keep cycling.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">7 · Lock screen<small>Push categories: purchase · threshold · health · brief · insight · supplement</small></div>
+  </div>
+
+</div>
+
+<div class="section-rule"><h2>Edit affordances · in-app control</h2><div class="line"></div></div>
+
+<div class="gallery">
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 8 — EDIT BUDGET (sheet over Finance)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <!-- background screen (dimmed) -->
+        <div class="scroll" style="opacity: 0.4;">
+          <div class="header-row">
+            <div class="name" style="font-size: 22px;">Finance</div>
+            <div style="color: var(--text-3); font-size: 13px;">May 2026</div>
+          </div>
+          <div class="balance-card">
+            <div class="label">NET WORTH</div>
+            <div class="amt">$284,419</div>
+          </div>
+          <div class="card">
+            <div class="label">By category</div>
+            <div class="bbar-row">
+              <div class="head"><span class="name">🍽 Restaurants</span><span class="val">$612 <span class="of">/ $500</span></span></div>
+              <div class="track"><div class="fill bad" style="width: 100%"></div></div>
+            </div>
+            <div class="bbar-row">
+              <div class="head"><span class="name">🛒 Groceries</span><span class="val">$427 <span class="of">/ $700</span></span></div>
+              <div class="track"><div class="fill ok" style="width: 61%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="edit-overlay"></div>
+        <div class="edit-sheet">
+          <div class="sheet-grab"></div>
+          <div class="sheet-title">🍽 Restaurants</div>
+          <div class="sheet-sub">Edit budget, thresholds, and alerts</div>
+
+          <div class="input-block">
+            <div class="lbl">Monthly cap</div>
+            <div class="input-row">
+              <span class="currency">$</span>
+              <div style="display: flex; align-items: center;">
+                <span class="val">500</span>
+                <span class="cursor"></span>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-3); padding: 6px 4px 0;">Currently $612 spent · 22% over</div>
+          </div>
+
+          <div class="input-block">
+            <div class="lbl">Alert thresholds</div>
+            <div class="chip-row">
+              <div class="chip on">50%</div>
+              <div class="chip on">75%</div>
+              <div class="chip on">90%</div>
+              <div class="chip on">100%</div>
+              <div class="chip">+ custom</div>
+            </div>
+          </div>
+
+          <div class="input-block">
+            <div class="lbl">Behavior</div>
+            <div class="set-card">
+              <div class="toggle-row" style="padding: 14px 16px;">
+                <div class="tl">Push notification<small>Lock-screen alert when threshold hits</small></div>
+                <div class="toggle on"><div class="knob"></div></div>
+              </div>
+              <div class="toggle-row" style="padding: 14px 16px; border-top: 0.5px solid var(--border);">
+                <div class="tl">Live Activity<small>Dynamic Island progress until 100%</small></div>
+                <div class="toggle on"><div class="knob"></div></div>
+              </div>
+              <div class="toggle-row" style="padding: 14px 16px; border-top: 0.5px solid var(--border);">
+                <div class="tl">Bypass quiet hours at 100%<small>10pm – 7am muted otherwise</small></div>
+                <div class="toggle on"><div class="knob"></div></div>
+              </div>
+              <div class="toggle-row" style="padding: 14px 16px; border-top: 0.5px solid var(--border);">
+                <div class="tl">Include in daily brief<small>Mention in morning push</small></div>
+                <div class="toggle"><div class="knob"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-primary">Save</div>
+          <div class="btn-link">Cancel</div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><div class="ic">⌂</div>Home</div>
+          <div class="tab active"><div class="ic">$</div>Finance</div>
+          <div class="tab"><div class="ic">★</div>Goals</div>
+          <div class="tab"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">8 · Edit budget<small>Sheet over the rendered surface · in-context editing</small></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SCREEN 9 — SETTINGS
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="icons">5G <span class="dot"></span></span>
+      </div>
+      <div class="screen">
+        <div class="scroll">
+          <div class="header-row">
+            <div>
+              <div class="greet"><span class="drill-back" style="margin: 0;"><span class="ar">‹</span> Home</span></div>
+              <div class="name" style="font-size: 26px;">Settings</div>
+            </div>
+            <div class="avatar">BA</div>
+          </div>
+
+          <div class="set-section">
+            <div class="head">Connections</div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="l"><span class="ic">$</span><div class="t">Actual Budget<small>actual.local · last sync 2 min ago</small></div></div>
+                <div class="v" style="color: var(--health-go);">● connected</div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">♥</span><div class="t">WHOOP<small>OAuth · 14 min ago</small></div></div>
+                <div class="v" style="color: var(--health-go);">● connected</div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">⌘</span><div class="t">Claude API<small>Bring-your-own key · cached prompt: 88%</small></div></div>
+                <div class="v" style="color: var(--health-go);">● active</div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">★</span><div class="t">Goals<small>Native — no external connection</small></div></div>
+                <div class="v" style="color: var(--text-3);">local only</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="head">Daily brief</div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="l"><span class="ic">⏰</span><div class="t">Morning brief</div></div>
+                <div class="v">07:30<span class="ar">›</span></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">⏰</span><div class="t">Evening retro nudge</div></div>
+                <div class="v">21:00<span class="ar">›</span></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">📅</span><div class="t">Weekly retro</div></div>
+                <div class="v">Fri 21:00<span class="ar">›</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="head">Quiet hours · global</div>
+            <div class="set-card" style="padding: 14px 16px;">
+              <div class="time-row">
+                <div class="time-input"><small>FROM</small>22:00</div>
+                <div class="time-input"><small>TO</small>07:00</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="head">Notification rules</div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="l"><span class="ic" style="color: var(--finance);">●</span><div class="t">Purchase<small>Every transaction</small></div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic" style="color: var(--finance-bad);">●</span><div class="t">Budget threshold<small>50 / 75 / 90 / 100%</small></div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic" style="color: var(--ai);">●</span><div class="t">Anomaly / new subscription<small>Statistical outliers</small></div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic" style="color: var(--health-go);">●</span><div class="t">Health insight<small>Recovery drops 30+ pts</small></div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic" style="color: var(--goals);">●</span><div class="t">Goal milestone changes<small>Notion edits</small></div></div>
+                <div class="v"><div class="toggle"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic" style="color: var(--health-blue);">●</span><div class="t">Supplement reminders<small>Per-supplement schedule</small></div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="head">Pillars</div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="l"><span class="ic">$</span><div class="t">Finance</div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">★</span><div class="t">Goals</div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">♥</span><div class="t">Health</div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">⌘</span><div class="t">Ask Claude</div></div>
+                <div class="v"><div class="toggle on"><div class="knob"></div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="head">Data</div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="l"><span class="ic">↓</span><div class="t">Export everything as JSON</div></div>
+                <div class="v"><span class="ar">›</span></div>
+              </div>
+              <div class="set-row">
+                <div class="l"><span class="ic">☁</span><div class="t">Litestream backup<small>B2 · last: 4h ago</small></div></div>
+                <div class="v" style="color: var(--health-go);">● healthy</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab active"><div class="ic">⌂</div>Home</div>
+          <div class="tab"><div class="ic">$</div>Finance</div>
+          <div class="tab"><div class="ic">★</div>Goals</div>
+          <div class="tab"><div class="ic">♥</div>Health</div>
+          <div class="tab"><div class="ic">⌘</div>Ask</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">9 · Settings<small>Connections · brief times · notif rules · pillars · data</small></div>
+  </div>
+
+</div>
+
+<div class="footnote">
+  <h3>Notes on the design language</h3>
+  <p>The aesthetic is anchored to three references: <b>Robinhood</b> for the pure-black, big-number, accent-color treatment of finance; <b>WHOOP</b> for the radial recovery dial and stop-light health palette; <b>Credit Karma</b> for the card-based modular layout that lets each pillar render on the home screen without crowding.</p>
+
+  <div class="grid">
+    <div>
+      <b>Color signals (load-bearing)</b><br>
+      <span style="color: var(--finance)">Green</span> — under budget, recovery cleared, goal complete.<br>
+      <span style="color: var(--health-mid)">Amber</span> — approaching threshold, recovery mid-band.<br>
+      <span style="color: var(--finance-bad)">Red</span> — over budget, low recovery, missed task.<br>
+      <span style="color: var(--goals)">Indigo</span> — goals pillar accent.<br>
+      <span style="color: var(--ai)">Amber-orange</span> — Claude / AI surfaces.
+    </div>
+    <div>
+      <b>Typography</b><br>
+      Inter (Apple SF Pro on device). Heavy weight contrast — Display 800 on the numbers, Regular 400 on the prose, Medium 500 on rows. Tabular figures so columns align.
+    </div>
+    <div>
+      <b>What's intentionally absent</b><br>
+      No tutorial overlays. No empty-state illustrations. No achievement badges. No social. No leaderboards. No "streak guilt" past a soft surface. The product trusts you to read your own numbers.
+    </div>
+    <div>
+      <b>Iteration notes</b><br>
+      v1 = these 5 tabs + lock-screen pushes. WidgetKit (net worth + recovery dial) and Live Activities (budget-threshold progress) land in Phase 2 / 3. Apple Watch app is Phase 7.
+    </div>
+  </div>
+
+  <p style="margin-top: 30px;">Open <code>mockups/index.html</code> in any browser. Full plan at <code>docs/ULTRAPLAN.md</code>.</p>
+</div>
+
+</body>
+</html>

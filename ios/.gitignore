@@ -1,0 +1,44 @@
+# xcodegen output — regenerate with `xcodegen generate`
+Northstar.xcodeproj/
+Northstar.xcworkspace/
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods (not used, but ignored defensively)
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# fastlane (lands Phase 1)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

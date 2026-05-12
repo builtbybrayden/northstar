@@ -1,0 +1,35 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Workspace-level local config
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Server runtime data
+server/data/
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Compiled binaries (use `go run` or `go build -o`; don't commit binaries)
+bin/
+**/*.exe
+
+# Node
+node_modules/
+**/node_modules/
+
+# Docs site builds
+docs-site/dist/
+docs-site/.astro/
+
+# Mac dev artifacts (the ios/.gitignore has the rest)
+*.xcuserstate

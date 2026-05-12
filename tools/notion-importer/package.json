@@ -1,0 +1,17 @@
+{
+  "name": "northstar-notion-importer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "One-shot CLI: pulls Notion roadmap databases (Milestones, Daily Log, Output Log, Networking Log) into a running Northstar server. Personal seed only — not part of the app.",
+  "bin": {
+    "northstar-import-notion": "src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15"
+  }
+}

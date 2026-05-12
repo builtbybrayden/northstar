@@ -1,0 +1,26 @@
+# Litestream config — streams WAL changes to B2 every second.
+# Restore with: litestream restore -o /data/northstar.db s3://<bucket>/northstar.db
+#
+# Required env vars (set in ../server/.env or compose environment):
+#   LITESTREAM_B2_BUCKET                — e.g. northstar-backups
+#   LITESTREAM_B2_ACCESS_KEY_ID         — B2 application key ID
+#   LITESTREAM_B2_SECRET_ACCESS_KEY     — B2 application key
+#
+# B2 exposes an S3-compatible endpoint at s3.<region>.backblazeb2.com.
+
+dbs:
+  - path: /data/northstar.db
+    replicas:
+      - type: s3
+        endpoint: https://s3.us-west-002.backblazeb2.com
+        bucket: ${LITESTREAM_B2_BUCKET}
+        path: northstar.db
+        access-key-id: ${LITESTREAM_B2_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_B2_SECRET_ACCESS_KEY}
+        # Sync immediately on WAL change; otherwise default 1s.
+        sync-interval: 1s
+        # 24h of point-in-time recovery window.
+        retention: 168h
+        retention-check-interval: 12h
+        # Snapshot a full DB copy daily so restores don't replay weeks of WAL.
+        snapshot-interval: 24h
