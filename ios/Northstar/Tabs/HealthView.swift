@@ -111,12 +111,20 @@ struct HealthView: View {
                    delta: rhrDelta())
             metric(label: "Sleep",
                    value: sleepDisplay,
-                   unit: today?.sleep?.score.map { "\($0)% score" } ?? "")
+                   unit: today?.sleep?.score.map { "\($0)% score" } ?? "",
+                   delta: sleepDelta())
         }
     }
 
     private func metric(label: String, value: String, unit: String, delta: String? = nil) -> some View {
-        VStack(spacing: 2) {
+        // Always reserve the bottom delta line so all three boxes render at
+        // the same height regardless of whether a delta is available.
+        let deltaText = delta ?? "—"
+        let deltaColor: Color = {
+            guard let delta else { return Theme.text3 }
+            return delta.hasPrefix("▼") ? Theme.financeBad : Theme.healthGo
+        }()
+        return VStack(spacing: 2) {
             Text(label).font(.caption2).bold().tracking(1).foregroundStyle(Theme.text3)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value).font(.system(size: 22, weight: .bold))
@@ -125,10 +133,8 @@ struct HealthView: View {
                     Text(unit).font(.caption2).foregroundStyle(Theme.text3)
                 }
             }
-            if let delta {
-                Text(delta).font(.caption2).bold()
-                    .foregroundStyle(delta.hasPrefix("▼") ? Theme.financeBad : Theme.healthGo)
-            }
+            Text(deltaText).font(.caption2).bold()
+                .foregroundStyle(deltaColor)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
@@ -236,6 +242,15 @@ struct HealthView: View {
         let d = today - yesterday
         if d == 0 { return "—" }
         return d < 0 ? "▼ \(abs(d))" : "▲ \(d)"
+    }
+    private func sleepDelta() -> String? {
+        // Show sleep debt if any; falls back to score-change later if we
+        // start pulling a window of sleep history.
+        guard let debt = today?.sleep?.debt_min else { return nil }
+        if debt <= 0 { return "no debt" }
+        let h = debt / 60
+        let m = debt % 60
+        return h > 0 ? "▼ \(h)h\(m > 0 ? " \(m)m" : "") debt" : "▼ \(m)m debt"
     }
 
     private func recoveryColor(score: Int) -> Color {

@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Northstar — Navigation patterns</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* ─── nav lab layout ─────────────────────────────────────────────────── */
+  .nav-lab {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 40px;
+  }
+  .pattern {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 32px;
+    display: flex; flex-direction: column;
+  }
+  .pattern h2 {
+    font-size: 22px; font-weight: 800; margin: 0 0 6px;
+  }
+  .pattern .tagline {
+    color: var(--text-2); font-size: 14px; margin: 0 0 4px;
+  }
+  .pattern .pros {
+    color: var(--health-go); font-size: 12px; margin: 0 0 4px;
+  }
+  .pattern .cons {
+    color: var(--ai); font-size: 12px; margin: 0 0 24px;
+  }
+
+  /* ─── shared phone frame ─────────────────────────────────────────────── */
+  .phone {
+    width: 320px; height: 580px;
+    margin: 0 auto;
+    background: #000;
+    border-radius: 36px;
+    border: 8px solid #1a1a1a;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .phone .notch {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 26px;
+    background: #1a1a1a;
+    border-radius: 0 0 18px 18px;
+    z-index: 10;
+  }
+  .phone .status-bar {
+    height: 38px; padding: 0 22px;
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--text); font-size: 12px; font-weight: 600;
+  }
+  .phone .stage {
+    flex: 1; padding: 16px; overflow: hidden;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  /* ─── content mock used in stage ─────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, #1c1c1c, #0a0a0a);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px; padding: 14px;
+  }
+  .hero .hi { color: var(--text-3); font-size: 10px; font-weight: 600; }
+  .hero .vd { color: var(--text); font-size: 16px; font-weight: 800; margin-top: 4px;}
+  .hero .row { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .pill {
+    background: var(--surface); color: var(--text-2);
+    padding: 3px 7px; border-radius: 99px; font-size: 9px;
+  }
+  .pill.green { color: var(--health-go); }
+  .pill.amber { color: var(--ai); }
+  .pill.violet { color: var(--goals); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .tile {
+    background: var(--surface); padding: 8px; border-radius: 10px;
+  }
+  .tile .lbl { color: var(--text-3); font-size: 8px; font-weight: 700; letter-spacing: 0.5px; }
+  .tile .num { color: var(--text); font-size: 16px; font-weight: 800; }
+  .tile .sub { color: var(--text-3); font-size: 8px; }
+
+  /* ─── #1 Floating pill tab bar ───────────────────────────────────────── */
+  .pill-bar {
+    position: absolute; bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(28, 28, 30, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 8px;
+    border-radius: 99px;
+    display: flex; gap: 4px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  }
+  .pill-bar .item {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 99px;
+    color: var(--text-3); font-size: 16px;
+    transition: all 0.18s;
+  }
+  .pill-bar .item.active {
+    background: var(--text); color: #000;
+    width: 80px; gap: 4px;
+  }
+  .pill-bar .item.active .label {
+    font-size: 11px; font-weight: 700;
+  }
+  .pill-bar .item:not(.active) .label { display: none; }
+
+  /* ─── #2 Side rail ───────────────────────────────────────────────────── */
+  .rail {
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    background: rgba(20,20,20,0.9);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 8px 4px;
+    border-radius: 24px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .rail .r-item {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px;
+    color: var(--text-3); font-size: 14px;
+    position: relative;
+  }
+  .rail .r-item.active {
+    background: var(--surface-hi); color: var(--text);
+  }
+  .rail .r-item.active::before {
+    content: ''; position: absolute; left: -6px; top: 25%; height: 50%;
+    width: 3px; background: var(--text); border-radius: 2px;
+  }
+  .rail-stage { padding-left: 60px !important; }
+
+  /* ─── #3 Swipe pager + segment header ────────────────────────────────── */
+  .segments {
+    display: flex; gap: 2px;
+    background: var(--surface); padding: 4px;
+    border-radius: 14px;
+    margin-bottom: 6px;
+  }
+  .segments .seg {
+    flex: 1; text-align: center;
+    padding: 6px 0;
+    font-size: 10px; color: var(--text-3); font-weight: 700;
+    border-radius: 10px;
+  }
+  .segments .seg.active {
+    background: var(--surface-hi); color: var(--text);
+  }
+  .swipe-hint {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    color: var(--text-3); font-size: 10px; padding-bottom: 12px;
+  }
+  .dots { display: flex; gap: 4px; }
+  .dots span { width: 5px; height: 5px; border-radius: 99px; background: var(--text-3); opacity: 0.4; }
+  .dots span.active { background: var(--text); opacity: 1; width: 14px; border-radius: 3px; }
+
+  /* ─── #4 Central command palette ────────────────────────────────────── */
+  .fab {
+    position: absolute; bottom: 22px; left: 50%;
+    transform: translateX(-50%);
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, var(--ai), #d97706);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: #000;
+    box-shadow: 0 12px 30px rgba(255, 159, 10, 0.5);
+  }
+  .sheet {
+    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+    width: 88%; background: rgba(28,28,30,0.92);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 22px;
+    padding: 14px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+  }
+  .sheet .search {
+    background: var(--surface); padding: 8px 10px;
+    border-radius: 10px; color: var(--text-3); font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .sheet .row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 6px; border-radius: 8px;
+  }
+  .sheet .row .ico {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+  }
+  .sheet .row .t {
+    font-size: 12px; color: var(--text); font-weight: 600;
+  }
+  .sheet .row .sub {
+    font-size: 9px; color: var(--text-3);
+  }
+  .sheet .row.hover { background: var(--surface-hi); }
+  .ico.finance { background: rgba(0,230,118,0.18); color: var(--finance); }
+  .ico.health  { background: rgba(0,182,255,0.18); color: var(--health-blue); }
+  .ico.goals   { background: rgba(94,92,230,0.18); color: var(--goals); }
+  .ico.ai      { background: rgba(255,159,10,0.18); color: var(--ai); }
+
+  /* ─── recommendation strip ───────────────────────────────────────────── */
+  .recommend {
+    max-width: 1400px;
+    margin: 0 auto 60px;
+    padding: 0 40px;
+  }
+  .recommend .box {
+    background: linear-gradient(135deg, rgba(255,159,10,0.08), rgba(94,92,230,0.06));
+    border: 1px solid rgba(255,159,10,0.2);
+    border-radius: 20px;
+    padding: 24px 28px;
+  }
+  .recommend h3 {
+    margin: 0 0 6px; font-size: 16px; color: var(--ai);
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+  .recommend p {
+    margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.6;
+  }
+  .recommend strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1 class="page-title">Navigation patterns</h1>
+  <p class="page-sub">
+    Four alternatives to the standard iOS tab bar. Each mockup shows the same
+    "Today" surface so they're directly comparable. Below each, what it costs
+    you and what it buys you.
+  </p>
+</header>
+
+<div class="nav-lab">
+
+  <!-- ─── #1 Floating pill bar ───────────────────────────────────────────── -->
+  <div class="pattern">
+    <h2>1 · Floating pill bar</h2>
+    <p class="tagline">A blurred capsule that hovers above the content. Active tab expands to show its label; others stay as icons.</p>
+    <p class="pros">+ Reads modern. Animated, premium feel. Reuses iOS Liquid Glass.</p>
+    <p class="cons">− Still bottom-anchored — same one-handed reach as default tabs.</p>
+
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+      <div class="stage">
+        <div class="hero">
+          <div class="hi">Good evening</div>
+          <div class="vd">Green light — push today.</div>
+          <div class="row">
+            <span class="pill green">▲ 82% recovery</span>
+            <span class="pill violet">🔥 14-day streak</span>
+            <span class="pill amber">$ 64% MTD</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="tile"><div class="lbl">SPEND MTD</div><div class="num">$3,210</div><div class="sub">$1,790 left</div></div>
+          <div class="tile"><div class="lbl">RECOVERY</div><div class="num">82%</div><div class="sub">7h 14m sleep</div></div>
+          <div class="tile"><div class="lbl">MILESTONES</div><div class="num">5</div><div class="sub">next: 2026-06-01</div></div>
+          <div class="tile"><div class="lbl">ASK</div><div class="num">Chat</div><div class="sub">Tap to open</div></div>
+        </div>
+      </div>
+      <div class="pill-bar">
+        <div class="item active">⌂<span class="label">Home</span></div>
+        <div class="item">$</div>
+        <div class="item">◎</div>
+        <div class="item">♡</div>
+        <div class="item">✨</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── #2 Side rail ───────────────────────────────────────────────────── -->
+  <div class="pattern">
+    <h2>2 · Side rail (left edge)</h2>
+    <p class="tagline">Vertical strip pinned to the left edge. Always-visible icons; tap any to swap pillars. Active gets an accent bar.</p>
+    <p class="pros">+ Frees vertical content. Thumb-friendly on big phones. Scales to iPad with zero work.</p>
+    <p class="cons">− Unconventional on iOS — costs you a moment of "what is this?"</p>
+
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+      <div class="stage rail-stage">
+        <div class="hero">
+          <div class="hi">Good evening</div>
+          <div class="vd">Green light — push today.</div>
+          <div class="row">
+            <span class="pill green">▲ 82% recovery</span>
+            <span class="pill violet">🔥 14-day streak</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="tile"><div class="lbl">SPEND MTD</div><div class="num">$3,210</div><div class="sub">$1,790 left</div></div>
+          <div class="tile"><div class="lbl">RECOVERY</div><div class="num">82%</div><div class="sub">7h 14m sleep</div></div>
+          <div class="tile"><div class="lbl">MILESTONES</div><div class="num">5</div><div class="sub">next: 2026-06-01</div></div>
+          <div class="tile"><div class="lbl">ASK</div><div class="num">Chat</div><div class="sub">Tap to open</div></div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="r-item active">⌂</div>
+        <div class="r-item">$</div>
+        <div class="r-item">◎</div>
+        <div class="r-item">♡</div>
+        <div class="r-item">✨</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── #3 Swipe pager ─────────────────────────────────────────────────── -->
+  <div class="pattern">
+    <h2>3 · Top segments + swipe</h2>
+    <p class="tagline">A small segment header up top; swipe horizontally to move between pillars. Dots at the bottom hint at position.</p>
+    <p class="pros">+ Fastest pillar-to-pillar feel. Gesture-native. No persistent chrome at all.</p>
+    <p class="cons">− Discoverability — users may not realize they can swipe between pillars.</p>
+
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+      <div class="stage">
+        <div class="segments">
+          <div class="seg active">HOME</div>
+          <div class="seg">FIN</div>
+          <div class="seg">GOAL</div>
+          <div class="seg">HLTH</div>
+          <div class="seg">AI</div>
+        </div>
+        <div class="hero">
+          <div class="hi">Good evening</div>
+          <div class="vd">Green light — push today.</div>
+          <div class="row">
+            <span class="pill green">▲ 82% recovery</span>
+            <span class="pill violet">🔥 14-day streak</span>
+            <span class="pill amber">$ 64% MTD</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="tile"><div class="lbl">SPEND MTD</div><div class="num">$3,210</div><div class="sub">$1,790 left</div></div>
+          <div class="tile"><div class="lbl">RECOVERY</div><div class="num">82%</div><div class="sub">7h 14m sleep</div></div>
+          <div class="tile"><div class="lbl">MILESTONES</div><div class="num">5</div><div class="sub">next: 2026-06-01</div></div>
+          <div class="tile"><div class="lbl">ASK</div><div class="num">Chat</div><div class="sub">Tap to open</div></div>
+        </div>
+      </div>
+      <div class="swipe-hint">
+        <div class="dots">
+          <span class="active"></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── #4 Central FAB + command palette ──────────────────────────────── -->
+  <div class="pattern">
+    <h2>4 · FAB + command palette</h2>
+    <p class="tagline">A single floating action button. Tap to open a palette with searchable destinations and shortcuts ("Log dose", "New milestone", "Ask Northstar…").</p>
+    <p class="pros">+ Scales to many destinations + actions. Search-first feels powerful.</p>
+    <p class="cons">− Adds one tap to switch pillars. Stronger learning curve.</p>
+
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+      <div class="stage">
+        <div class="hero">
+          <div class="hi">Good evening</div>
+          <div class="vd">Green light — push today.</div>
+          <div class="row">
+            <span class="pill green">▲ 82% recovery</span>
+            <span class="pill violet">🔥 14-day streak</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="tile"><div class="lbl">SPEND MTD</div><div class="num">$3,210</div><div class="sub">$1,790 left</div></div>
+          <div class="tile"><div class="lbl">RECOVERY</div><div class="num">82%</div><div class="sub">7h 14m sleep</div></div>
+        </div>
+      </div>
+      <div class="sheet">
+        <div class="search">⌕  ask, log, jump to…</div>
+        <div class="row hover">
+          <div class="ico finance">$</div>
+          <div><div class="t">Finance</div><div class="sub">$3,210 of $5,000 MTD</div></div>
+        </div>
+        <div class="row">
+          <div class="ico health">♡</div>
+          <div><div class="t">Log supplement</div><div class="sub">3 pending today</div></div>
+        </div>
+        <div class="row">
+          <div class="ico goals">◎</div>
+          <div><div class="t">OSCP — flagship</div><div class="sub">due 2027-04-01</div></div>
+        </div>
+        <div class="row">
+          <div class="ico ai">✨</div>
+          <div><div class="t">Ask Northstar</div><div class="sub">why is spend so high?</div></div>
+        </div>
+      </div>
+      <div class="fab">✨</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="recommend">
+  <div class="box">
+    <h3>Recommendation</h3>
+    <p>
+      For a personal Life-OS, <strong>#1 (floating pill bar)</strong> is the
+      strongest baseline — it keeps the muscle memory of iOS tabs while looking
+      meaningfully more polished, and it's a 1-day swap from the current
+      <code>TabView</code>. A second pass could layer <strong>#4 (FAB + command
+      palette)</strong> on top: keep the pill bar for spatial navigation,
+      add a center "✨" FAB for actions ("Ask", "Log dose", "Add milestone") —
+      the two patterns complement rather than compete. <strong>#3 (swipe
+      pager)</strong> is tempting but discoverability is the price; reserve it
+      for inside-pillar sub-tabs (e.g., Health → Recovery / Sleep / Strain /
+      Stack). <strong>#2 (side rail)</strong> is the iPad story — worth
+      revisiting when you build that surface.
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -19,10 +19,17 @@ struct SupplementEditSheet: View {
     @State private var saving = false
     @State private var saveError: String?
 
-    // Reminder schedule (server reads schedule_json with shape {"times":["07:00", ...]})
+    // Reminder schedule (server reads schedule_json with shape
+    // {"times":["07:00",...],"days":["mon","wed",...]}). Empty `days` means
+    // every day; explicit list narrows firing to those weekdays only.
     @State private var reminderTimes: [Date] = []
+    @State private var reminderDays: Set<String> = []   // empty = every day
 
     private let categories = ["supplement", "peptide", "medication"]
+    private let weekdays: [(key: String, label: String)] = [
+        ("mon", "M"), ("tue", "T"), ("wed", "W"), ("thu", "T"),
+        ("fri", "F"), ("sat", "S"), ("sun", "S"),
+    ]
 
     var body: some View {
         NavigationStack {
@@ -58,6 +65,7 @@ struct SupplementEditSheet: View {
 
                     if reminderEnabled {
                         timesSection
+                        daysSection
                     }
 
                     if category == "medication" {
@@ -146,6 +154,62 @@ struct SupplementEditSheet: View {
         }
     }
 
+    private var daysSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("DAYS")
+                    .font(.caption2).bold().tracking(1).foregroundStyle(Theme.text3)
+                Spacer()
+                Button(reminderDays.isEmpty ? "Daily" : "Custom") {
+                    if reminderDays.isEmpty {
+                        reminderDays = ["mon", "wed", "fri"]
+                    } else {
+                        reminderDays = []
+                    }
+                }
+                .font(.caption).foregroundStyle(Theme.ai)
+            }
+            HStack(spacing: 6) {
+                ForEach(weekdays, id: \.key) { d in
+                    let on = reminderDays.isEmpty || reminderDays.contains(d.key)
+                    Button {
+                        if reminderDays.isEmpty {
+                            // First tap converts "daily" to explicit selection
+                            // so the user can subtract from the full set.
+                            reminderDays = Set(weekdays.map(\.key))
+                        }
+                        if reminderDays.contains(d.key) {
+                            reminderDays.remove(d.key)
+                        } else {
+                            reminderDays.insert(d.key)
+                        }
+                        // Collapse "all selected" back to empty = daily.
+                        if reminderDays.count == weekdays.count {
+                            reminderDays = []
+                        }
+                    } label: {
+                        Text(d.label)
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(on ? Theme.ai.opacity(0.18) : Color(hex: 0x0f0f0f))
+                            .foregroundStyle(on ? Theme.ai : Theme.text3)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(on ? Theme.ai : Color.clear, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Text(reminderDays.isEmpty
+                 ? "Reminder fires every day at the times above."
+                 : "Fires only on selected days at the times above.")
+                .font(.caption).foregroundStyle(Theme.text3)
+                .padding(.horizontal, 4)
+        }
+    }
+
     private var cycleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle(isOn: $cycleEnabled) {
@@ -193,24 +257,40 @@ struct SupplementEditSheet: View {
         if let on = s.cycle_days_on, let off = s.cycle_days_off, on > 0 {
             cycleEnabled = true; cycleOn = on; cycleOff = off
         }
-        reminderTimes = parseScheduleTimes(s.schedule_json)
+        let parsed = parseSchedule(s.schedule_json)
+        reminderTimes = parsed.times
+        reminderDays = parsed.days
     }
 
-    private func parseScheduleTimes(_ raw: String) -> [Date] {
+    private struct ParsedSchedule {
+        var times: [Date] = []
+        var days: Set<String> = []
+    }
+
+    private func parseSchedule(_ raw: String) -> ParsedSchedule {
+        var out = ParsedSchedule()
         guard let data = raw.data(using: .utf8),
               let any = try? JSONSerialization.jsonObject(with: data)
-        else { return [] }
-        let strings: [String]
-        if let obj = any as? [String: Any], let t = obj["times"] as? [String] { strings = t }
-        else if let arr = any as? [String] { strings = arr }
-        else { return [] }
+        else { return out }
+        let timeStrings: [String]
+        if let obj = any as? [String: Any], let t = obj["times"] as? [String] {
+            timeStrings = t
+            if let d = obj["days"] as? [String] {
+                out.days = Set(d.map { $0.lowercased() })
+            }
+        } else if let arr = any as? [String] {
+            timeStrings = arr
+        } else {
+            return out
+        }
         var cal = Calendar.current; cal.timeZone = .current
-        return strings.compactMap { hhmm in
+        out.times = timeStrings.compactMap { hhmm in
             let parts = hhmm.split(separator: ":")
             guard parts.count == 2,
                   let h = Int(parts[0]), let m = Int(parts[1]) else { return nil }
             return cal.date(bySettingHour: h, minute: m, second: 0, of: Date())
         }
+        return out
     }
 
     private func serializeSchedule() -> String? {
@@ -219,7 +299,12 @@ struct SupplementEditSheet: View {
         fmt.timeZone = .current
         fmt.dateFormat = "HH:mm"
         let times = reminderTimes.map(fmt.string(from:)).sorted()
-        let payload: [String: Any] = ["times": times]
+        var payload: [String: Any] = ["times": times]
+        // Only include `days` when narrowing — empty = "every day" per server.
+        if !reminderDays.isEmpty {
+            let order = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+            payload["days"] = order.filter { reminderDays.contains($0) }
+        }
         if let data = try? JSONSerialization.data(withJSONObject: payload),
            let s = String(data: data, encoding: .utf8) {
             return s
