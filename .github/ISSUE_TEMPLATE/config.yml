@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: https://github.com/builtbybrayden/northstar/blob/main/SECURITY.md
+    about: Do not file a public issue. Email brayden.arnold@gmail.com instead.
+  - name: Documentation
+    url: https://github.com/builtbybrayden/northstar/tree/main/docs-site
+    about: Setup, configuration, and operating guides live in the docs site.
+  - name: Roadmap
+    url: https://github.com/builtbybrayden/northstar/blob/main/ROADMAP.md
+    about: Check the roadmap before proposing a feature — it may already be planned (or explicitly out of scope).

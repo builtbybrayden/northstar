@@ -79,7 +79,10 @@ func (s *Server) Router() http.Handler {
 		if s.cfg.Pillars.Finance {
 			r.Get("/api/finance/accounts", fin.Accounts)
 			r.Get("/api/finance/transactions", fin.Transactions)
+			r.Patch("/api/finance/transactions/{id}", fin.UpdateTransaction)
 			r.Get("/api/finance/summary", fin.Summary)
+			r.Get("/api/finance/forecast", fin.ForecastEndpoint)
+			r.Get("/api/finance/investments", fin.Investments)
 			r.Get("/api/finance/budget-targets", fin.ListBudgetTargets)
 			r.Patch("/api/finance/budget-targets/{category}", fin.UpdateBudgetTarget)
 		}
@@ -116,12 +119,27 @@ func (s *Server) Router() http.Handler {
 			disp := ai.NewToolDispatcher(s.db)
 			var client *ai.Client
 			var mock *ai.MockEngine
-			if strings.EqualFold(s.cfg.AI.Mode, "anthropic") && s.cfg.AI.APIKey != "" {
-				client = ai.NewClient(s.cfg.AI.APIKey, s.cfg.AI.Model)
-			} else {
+			var cli *ai.CLIEngine
+			switch strings.ToLower(s.cfg.AI.Mode) {
+			case "anthropic":
+				if s.cfg.AI.APIKey != "" {
+					client = ai.NewClient(s.cfg.AI.APIKey, s.cfg.AI.Model)
+				} else {
+					log.Printf("ai: mode=anthropic but NORTHSTAR_CLAUDE_API_KEY empty — falling back to mock")
+					mock = ai.NewMockEngine(disp)
+				}
+			case "cli":
+				cli = ai.NewCLIEngine(disp, s.cfg.AI.CLIBin, s.cfg.AI.Model)
+				if s.cfg.AI.CLIBridgeURL != "" {
+					cli = cli.WithBridge(s.cfg.AI.CLIBridgeURL, s.cfg.AI.CLIBridgeSecret)
+					log.Printf("ai: cli mode via bridge %s", s.cfg.AI.CLIBridgeURL)
+				} else {
+					log.Printf("ai: cli mode via direct exec (binary=%s)", s.cfg.AI.CLIBin)
+				}
+			default:
 				mock = ai.NewMockEngine(disp)
 			}
-			ah := ai.NewHandlers(s.db, disp, client, mock)
+			ah := ai.NewHandlers(s.db, disp, client, mock, cli)
 			r.Get("/api/ai/conversations", ah.ListConversations)
 			r.Post("/api/ai/conversations", ah.CreateConversation)
 			r.Patch("/api/ai/conversations/{id}", ah.PatchConversation)
@@ -159,6 +177,12 @@ func (s *Server) Router() http.Handler {
 			r.Delete("/api/goals/reminders/{id}", gh.DeleteReminder)
 
 			r.Get("/api/goals/brief", gh.GetBrief)
+
+			r.Get("/api/goals/habits", gh.ListHabits)
+			r.Post("/api/goals/habits", gh.CreateHabit)
+			r.Patch("/api/goals/habits/{id}", gh.UpdateHabit)
+			r.Delete("/api/goals/habits/{id}", gh.DeleteHabit)
+			r.Put("/api/goals/habits/{id}/log/{date}", gh.PutHabitLog)
 		}
 	})
 

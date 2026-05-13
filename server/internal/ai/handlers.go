@@ -17,13 +17,14 @@ import (
 type Handlers struct {
 	DB         *sql.DB
 	Dispatcher *ToolDispatcher
-	Client     *Client      // nil in mock mode
-	Mock       *MockEngine  // non-nil in mock mode
+	Client     *Client      // non-nil iff Mode = anthropic
+	Mock       *MockEngine  // non-nil iff Mode = mock
+	CLI        *CLIEngine   // non-nil iff Mode = cli
 	Now        func() time.Time
 }
 
-func NewHandlers(db *sql.DB, disp *ToolDispatcher, client *Client, mock *MockEngine) *Handlers {
-	return &Handlers{DB: db, Dispatcher: disp, Client: client, Mock: mock, Now: time.Now}
+func NewHandlers(db *sql.DB, disp *ToolDispatcher, client *Client, mock *MockEngine, cli *CLIEngine) *Handlers {
+	return &Handlers{DB: db, Dispatcher: disp, Client: client, Mock: mock, CLI: cli, Now: time.Now}
 }
 
 // ─── /api/ai/conversations ────────────────────────────────────────────────
@@ -294,8 +295,9 @@ func (h *Handlers) SendMessageStream(w http.ResponseWriter, r *http.Request) {
 	var assistantBlocks []contentBlock
 	var usage Usage
 	var streamErr error
-	if h.Client != nil {
-		// Real Claude mode
+	switch {
+	case h.Client != nil:
+		// Real Anthropic API mode — full tool-use loop with streaming + usage telemetry.
 		executor := func(ctx context.Context, name string, raw json.RawMessage) (string, error) {
 			return h.Dispatcher.Dispatch(ctx, name, raw)
 		}
@@ -307,9 +309,13 @@ func (h *Handlers) SendMessageStream(w http.ResponseWriter, r *http.Request) {
 			executor,
 			emit,
 		)
-	} else if h.Mock != nil {
+	case h.CLI != nil:
+		// Local `claude` CLI — no live tool-use, pillar snapshot inlined into
+		// the system prompt instead. Token usage unavailable on this path.
+		assistantBlocks, streamErr = h.CLI.Stream(r.Context(), history, emit)
+	case h.Mock != nil:
 		assistantBlocks, streamErr = h.Mock.Stream(r.Context(), history, emit)
-	} else {
+	default:
 		streamErr = errors.New("no AI backend configured")
 	}
 

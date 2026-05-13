@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,6 +55,30 @@ func main() {
 
 	if cfg.Finance.Enabled {
 		sc := finance.NewSidecarClient(cfg.Finance.SidecarURL, cfg.Finance.SidecarSecret)
+
+		// When mode=actual, forward credentials to the sidecar's /init.
+		// Mock mode skips this — the sidecar's mock provider has nothing to
+		// initialize.
+		if strings.EqualFold(cfg.Finance.Mode, "actual") {
+			if cfg.Finance.ActualServerURL == "" || cfg.Finance.ActualPassword == "" || cfg.Finance.ActualSyncID == "" {
+				log.Printf("finance: mode=actual but NORTHSTAR_ACTUAL_{SERVER_URL,PASSWORD,SYNC_ID} missing — sidecar will error until credentials are provided")
+			} else {
+				initCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+				err := sc.Init(initCtx, finance.InitParams{
+					ServerURL:          cfg.Finance.ActualServerURL,
+					Password:           cfg.Finance.ActualPassword,
+					SyncID:             cfg.Finance.ActualSyncID,
+					EncryptionPassword: cfg.Finance.ActualEncryption,
+				})
+				cancel()
+				if err != nil {
+					log.Printf("finance: sidecar init failed: %v (sync will keep retrying after the first error surfaces)", err)
+				} else {
+					log.Printf("finance: sidecar initialized against Actual server %s", cfg.Finance.ActualServerURL)
+				}
+			}
+		}
+
 		detector := finance.NewDetector(d, composer)
 		syncer := finance.NewSyncer(d, sc, detector, cfg.Finance.SyncInterval)
 		go syncer.Run(ctx)

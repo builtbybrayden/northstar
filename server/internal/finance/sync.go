@@ -137,12 +137,34 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 			}
 			_, err := s.DB.ExecContext(ctx,
 				`INSERT OR IGNORE INTO fin_budget_targets
-				   (category, monthly_cents, rationale, updated_at)
-				 VALUES (?, ?, 'seeded from Actual', ?)`,
-				name, b.Budgeted, now)
+				   (category, monthly_cents, rationale, category_group, updated_at)
+				 VALUES (?, ?, 'seeded from Actual', ?, ?)`,
+				name, b.Budgeted, DefaultGroupFor(name), now)
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	// Backfill category_group for target rows that pre-date migration 00006
+	// (or were inserted by the user with no group). Cheap to run every sync
+	// since the WHERE clause is selective once everything's classified.
+	rows, err := s.DB.QueryContext(ctx,
+		`SELECT category FROM fin_budget_targets WHERE category_group IS NULL OR category_group = ''`)
+	if err == nil {
+		var cats []string
+		for rows.Next() {
+			var c string
+			if rows.Scan(&c) == nil {
+				cats = append(cats, c)
+			}
+		}
+		rows.Close()
+		for _, c := range cats {
+			_, _ = s.DB.ExecContext(ctx,
+				`UPDATE fin_budget_targets SET category_group = ?
+				   WHERE category = ? AND (category_group IS NULL OR category_group = '')`,
+				DefaultGroupFor(c), c)
 		}
 	}
 

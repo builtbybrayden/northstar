@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -23,6 +24,7 @@ func NewHandlers(db *sql.DB) *Handlers {
 
 type budgetTargetDTO struct {
 	Category       string `json:"category"`
+	CategoryGroup  string `json:"category_group"`
 	MonthlyCents   int64  `json:"monthly_cents"`
 	Rationale      string `json:"rationale"`
 	ThresholdPcts  []int  `json:"threshold_pcts"`
@@ -31,7 +33,8 @@ type budgetTargetDTO struct {
 
 func (h *Handlers) ListBudgetTargets(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(r.Context(),
-		`SELECT category, monthly_cents, COALESCE(rationale,''), threshold_pcts, push_enabled
+		`SELECT category, COALESCE(category_group,''), monthly_cents,
+		        COALESCE(rationale,''), threshold_pcts, push_enabled
 		   FROM fin_budget_targets ORDER BY category ASC`)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -44,9 +47,13 @@ func (h *Handlers) ListBudgetTargets(w http.ResponseWriter, r *http.Request) {
 		var d budgetTargetDTO
 		var pctRaw string
 		var pushInt int
-		if err := rows.Scan(&d.Category, &d.MonthlyCents, &d.Rationale, &pctRaw, &pushInt); err != nil {
+		if err := rows.Scan(&d.Category, &d.CategoryGroup, &d.MonthlyCents,
+			&d.Rationale, &pctRaw, &pushInt); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
+		}
+		if d.CategoryGroup == "" {
+			d.CategoryGroup = DefaultGroupFor(d.Category)
 		}
 		d.ThresholdPcts = parseThresholdsForDTO(pctRaw)
 		d.PushEnabled = pushInt == 1
@@ -56,9 +63,10 @@ func (h *Handlers) ListBudgetTargets(w http.ResponseWriter, r *http.Request) {
 }
 
 type budgetTargetUpdate struct {
-	MonthlyCents   *int64 `json:"monthly_cents,omitempty"`
-	ThresholdPcts  *[]int `json:"threshold_pcts,omitempty"`
-	PushEnabled    *bool  `json:"push_enabled,omitempty"`
+	MonthlyCents   *int64  `json:"monthly_cents,omitempty"`
+	ThresholdPcts  *[]int  `json:"threshold_pcts,omitempty"`
+	PushEnabled    *bool   `json:"push_enabled,omitempty"`
+	CategoryGroup  *string `json:"category_group,omitempty"`
 }
 
 func (h *Handlers) UpdateBudgetTarget(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +106,15 @@ func (h *Handlers) UpdateBudgetTarget(w http.ResponseWriter, r *http.Request) {
 		sets = append(sets, "push_enabled = ?")
 		args = append(args, boolToInt(*u.PushEnabled))
 	}
+	if u.CategoryGroup != nil {
+		g := strings.TrimSpace(*u.CategoryGroup)
+		if g == "" {
+			// Empty value resets to the default heuristic.
+			g = DefaultGroupFor(category)
+		}
+		sets = append(sets, "category_group = ?")
+		args = append(args, g)
+	}
 	if len(sets) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "noop": true})
 		return
@@ -129,10 +146,14 @@ func (h *Handlers) UpdateBudgetTarget(w http.ResponseWriter, r *http.Request) {
 		if u.PushEnabled != nil && !*u.PushEnabled {
 			push = 0
 		}
+		group := DefaultGroupFor(category)
+		if u.CategoryGroup != nil && strings.TrimSpace(*u.CategoryGroup) != "" {
+			group = strings.TrimSpace(*u.CategoryGroup)
+		}
 		_, err := h.DB.ExecContext(r.Context(),
-			`INSERT INTO fin_budget_targets (category, monthly_cents, rationale, threshold_pcts, push_enabled, updated_at)
-			 VALUES (?, ?, 'user', ?, ?, ?)`,
-			category, *u.MonthlyCents, pcts, push, time.Now().Unix())
+			`INSERT INTO fin_budget_targets (category, monthly_cents, rationale, threshold_pcts, push_enabled, category_group, updated_at)
+			 VALUES (?, ?, 'user', ?, ?, ?, ?)`,
+			category, *u.MonthlyCents, pcts, push, group, time.Now().Unix())
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
@@ -212,14 +233,15 @@ func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 // ─── /api/finance/transactions ────────────────────────────────────────────
 
 type transactionDTO struct {
-	ID           string `json:"id"`
-	AccountID    string `json:"account_id"`
-	AccountName  string `json:"account_name"`
-	Date         string `json:"date"`
-	Payee        string `json:"payee"`
-	Category     string `json:"category"`
-	AmountCents  int64  `json:"amount_cents"`
-	Notes        string `json:"notes"`
+	ID               string `json:"id"`
+	AccountID        string `json:"account_id"`
+	AccountName      string `json:"account_name"`
+	Date             string `json:"date"`
+	Payee            string `json:"payee"`
+	Category         string `json:"category"`
+	CategoryOriginal string `json:"category_original,omitempty"`
+	AmountCents      int64  `json:"amount_cents"`
+	Notes            string `json:"notes"`
 }
 
 func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
@@ -230,13 +252,25 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
+	// Starting Balances are Actual's one-time onboarding rows used to align
+	// the account with the real-world balance. They aren't real purchases and
+	// they bury actual activity in the feed. Hide them by default; flag
+	// `?include_starting=1` brings them back.
+	includeStarting := r.URL.Query().Get("include_starting") == "1"
+	startingFilter := ""
+	if !includeStarting {
+		startingFilter = ` WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Starting Balances'`
+	}
 
 	rows, err := h.DB.QueryContext(r.Context(),
 		`SELECT t.actual_id, t.account_id, COALESCE(a.name,''), t.date,
-		        COALESCE(t.payee,''), COALESCE(t.category,''),
+		        COALESCE(t.payee,''),
+		        COALESCE(NULLIF(t.category_user, ''), COALESCE(t.category,'')) AS effective,
+		        CASE WHEN NULLIF(t.category_user,'') IS NOT NULL
+		             THEN COALESCE(t.category,'') ELSE '' END AS original,
 		        t.amount_cents, COALESCE(t.notes,'')
 		   FROM fin_transactions t
-		   LEFT JOIN fin_accounts a ON a.actual_id = t.account_id
+		   LEFT JOIN fin_accounts a ON a.actual_id = t.account_id`+startingFilter+`
 		   ORDER BY t.date DESC, t.imported_at DESC
 		   LIMIT ?`, limit)
 	if err != nil {
@@ -249,7 +283,8 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var t transactionDTO
 		if err := rows.Scan(&t.ID, &t.AccountID, &t.AccountName, &t.Date,
-			&t.Payee, &t.Category, &t.AmountCents, &t.Notes); err != nil {
+			&t.Payee, &t.Category, &t.CategoryOriginal,
+			&t.AmountCents, &t.Notes); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -258,10 +293,249 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// ─── PATCH /api/finance/transactions/:id ──────────────────────────────────
+
+// transactionUpdate represents a partial transaction edit from the iOS app.
+// `Category` uses a json.RawMessage so we can distinguish:
+//   - field omitted entirely (no change)
+//   - field set to `null`        (reset override; revert to upstream)
+//   - field set to a string      (apply override)
+// We don't expose payee/amount/account edits — those belong in Actual.
+type transactionUpdate struct {
+	Category json.RawMessage `json:"category"`
+}
+
+func (h *Handlers) UpdateTransaction(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeErrMsg(w, http.StatusBadRequest, "id required")
+		return
+	}
+	var u transactionUpdate
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		writeErrMsg(w, http.StatusBadRequest, "bad json")
+		return
+	}
+
+	// Load upstream category so we can auto-clear the override when the user
+	// picks the same value Actual already had.
+	var upstream string
+	switch err := h.DB.QueryRowContext(r.Context(),
+		`SELECT COALESCE(category,'') FROM fin_transactions WHERE actual_id = ?`, id).
+		Scan(&upstream); err {
+	case sql.ErrNoRows:
+		writeErrMsg(w, http.StatusNotFound, "transaction not found")
+		return
+	case nil:
+	default:
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if u.Category == nil || len(u.Category) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "noop": true})
+		return
+	}
+
+	var newOverride sql.NullString
+	if string(u.Category) == "null" {
+		// explicit reset
+		newOverride.Valid = false
+	} else {
+		var s string
+		if err := json.Unmarshal(u.Category, &s); err != nil {
+			writeErrMsg(w, http.StatusBadRequest, "category must be a string or null")
+			return
+		}
+		s = trimSpaces(s)
+		if s == "" || s == upstream {
+			// User picked nothing or matched upstream → clear override.
+			newOverride.Valid = false
+		} else {
+			newOverride.Valid = true
+			newOverride.String = s
+		}
+	}
+
+	_, err := h.DB.ExecContext(r.Context(),
+		`UPDATE fin_transactions SET category_user = ? WHERE actual_id = ?`,
+		nullStringToValue(newOverride), id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	effective := upstream
+	if newOverride.Valid {
+		effective = newOverride.String
+	}
+	original := ""
+	if newOverride.Valid {
+		original = upstream
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":                true,
+		"id":                id,
+		"category":          effective,
+		"category_original": original,
+	})
+}
+
+func nullStringToValue(n sql.NullString) any {
+	if !n.Valid {
+		return nil
+	}
+	return n.String
+}
+
+func trimSpaces(s string) string {
+	start, end := 0, len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
+}
+
+// ─── /api/finance/investments ────────────────────────────────────────────
+
+type investmentAccountDTO struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	BalanceCents int64   `json:"balance_cents"`
+	PctOfTotal   float64 `json:"pct_of_total"`
+	Group        string  `json:"group"` // equity | crypto | retirement | real_estate | cash | other
+}
+
+type investmentsResponse struct {
+	TotalCents int64                   `json:"total_cents"`
+	Groups     map[string]int64        `json:"groups"`
+	Accounts   []investmentAccountDTO  `json:"accounts"`
+}
+
+// Investments returns a breakdown of off-budget account balances grouped
+// into asset classes. Off-budget is Actual's flag for accounts you want to
+// track but not budget against — investments, retirement, real-estate, etc.
+// The grouping is a name-based heuristic; users can override the mapping
+// by renaming an account in Actual.
+func (h *Handlers) Investments(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.DB.QueryContext(r.Context(),
+		`SELECT actual_id, name, balance_cents
+		   FROM fin_accounts
+		  WHERE closed = 0 AND on_budget = 0
+		  ORDER BY balance_cents DESC`)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer rows.Close()
+
+	resp := investmentsResponse{
+		Groups:   map[string]int64{},
+		Accounts: []investmentAccountDTO{},
+	}
+	for rows.Next() {
+		var a investmentAccountDTO
+		if err := rows.Scan(&a.ID, &a.Name, &a.BalanceCents); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		a.Group = classifyInvestmentAccount(a.Name)
+		resp.Accounts = append(resp.Accounts, a)
+		resp.TotalCents += a.BalanceCents
+		resp.Groups[a.Group] += a.BalanceCents
+	}
+	if resp.TotalCents > 0 {
+		for i := range resp.Accounts {
+			resp.Accounts[i].PctOfTotal = float64(resp.Accounts[i].BalanceCents) /
+				float64(resp.TotalCents) * 100
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// classifyInvestmentAccount buckets an account by name keywords. Heuristic;
+// returns "other" for anything that doesn't match.
+func classifyInvestmentAccount(name string) string {
+	lower := lowerASCII(name)
+	switch {
+	case containsAny(lower, "401k", "ira", "roth", "403b", "pension", "retirement"):
+		return "retirement"
+	case containsAny(lower, "crypto", "bitcoin", "btc", "eth"):
+		return "crypto"
+	case containsAny(lower, "house", "real estate", "property", "home"):
+		return "real_estate"
+	case containsAny(lower, "robinhood", "fidelity", "schwab", "vanguard", "etrade", "brokerage", "individual"):
+		return "equity"
+	case containsAny(lower, "hysa", "savings", "money market", "treasury"):
+		return "cash"
+	}
+	return "other"
+}
+
+func containsAny(haystack string, needles ...string) bool {
+	for _, n := range needles {
+		if n == "" {
+			continue
+		}
+		if indexOf(haystack, n) >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func lowerASCII(s string) string {
+	out := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		out[i] = c
+	}
+	return string(out)
+}
+
+func indexOf(s, sub string) int {
+	if len(sub) == 0 {
+		return 0
+	}
+	if len(sub) > len(s) {
+		return -1
+	}
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}
+
+// ─── /api/finance/forecast?days=N ────────────────────────────────────────
+
+func (h *Handlers) ForecastEndpoint(w http.ResponseWriter, r *http.Request) {
+	days := 90
+	if v := r.URL.Query().Get("days"); v != "" {
+		if n, ok := atoiSafe(v); ok && n > 0 && n <= 365 {
+			days = n
+		}
+	}
+	f, err := Compute(r.Context(), h.DB, time.Now().UTC(), days)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, f)
+}
+
 // ─── /api/finance/summary?month=YYYY-MM ────────────────────────────────────
 
 type categorySummary struct {
 	Category      string `json:"category"`
+	CategoryGroup string `json:"category_group"`
 	SpentCents    int64  `json:"spent_cents"`
 	BudgetedCents int64  `json:"budgeted_cents"`
 	Pct           int    `json:"pct"`            // 0–100+ rounded
@@ -309,18 +583,20 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 		 FROM fin_transactions t
 		 JOIN fin_accounts a ON a.actual_id = t.account_id
 		 WHERE t.date LIKE ? AND a.on_budget = 1
-		   AND COALESCE(t.category,'') != 'Transfer'`, monthLike).
+		   AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')`, monthLike).
 		Scan(&resp.IncomeCents, &resp.SpentCents); err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	// Per-category spend joined to budget targets
+	// Per-category spend joined to budget targets. The effective category
+	// honors per-row user overrides (category_user) when present.
 	rows, err := h.DB.QueryContext(r.Context(),
 		`SELECT b.category,
+		        COALESCE(b.category_group,'') AS grp,
 		        COALESCE(-(SELECT SUM(amount_cents) FROM fin_transactions t
 		                   JOIN fin_accounts a ON a.actual_id = t.account_id
-		                   WHERE t.category = b.category
+		                   WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = b.category
 		                     AND t.date LIKE ?
 		                     AND t.amount_cents < 0
 		                     AND a.on_budget = 1), 0) AS spent,
@@ -336,9 +612,12 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 	var totalBudgeted int64
 	for rows.Next() {
 		var c categorySummary
-		if err := rows.Scan(&c.Category, &c.SpentCents, &c.BudgetedCents); err != nil {
+		if err := rows.Scan(&c.Category, &c.CategoryGroup, &c.SpentCents, &c.BudgetedCents); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
+		}
+		if c.CategoryGroup == "" {
+			c.CategoryGroup = DefaultGroupFor(c.Category)
 		}
 		if c.BudgetedCents > 0 {
 			c.Pct = int((c.SpentCents * 100) / c.BudgetedCents)

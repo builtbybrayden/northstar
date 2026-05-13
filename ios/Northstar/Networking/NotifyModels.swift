@@ -26,6 +26,7 @@ struct NotificationRule: Decodable, Identifiable {
 struct BudgetTarget: Decodable, Identifiable {
     var id: String { category }
     let category: String
+    var category_group: String?
     var monthly_cents: Int64
     let rationale: String
     var threshold_pcts: [Int]

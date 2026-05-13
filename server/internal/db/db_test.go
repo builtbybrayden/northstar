@@ -56,6 +56,13 @@ func TestMigrate_AppliesAll(t *testing.T) {
 		{"fin_merchant_stats", "median_abs_cents"},
 		// Phase 6 polish — usage telemetry
 		{"ai_messages", "usage_json"},
+		// Phase 7 — finance polish: per-transaction category override
+		{"fin_transactions", "category_user"},
+		// Phase 7 — habit tracker
+		{"goal_habits", "target_per_week"},
+		{"goal_habit_log", "count"},
+		// Phase 7.1 — category grouping
+		{"fin_budget_targets", "category_group"},
 	}
 	for _, c := range cases {
 		t.Run(c.table+"."+c.column, func(t *testing.T) {

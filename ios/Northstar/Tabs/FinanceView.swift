@@ -9,6 +9,7 @@ struct FinanceView: View {
     @State private var loadError: String?
     @State private var refreshing = false
     @State private var editingTarget: BudgetTarget?
+    @State private var detailTxn: Transaction?
 
     private let monthFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -39,6 +40,24 @@ struct FinanceView: View {
             .navigationTitle("Finance")
             .toolbarBackground(Theme.bg, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    HStack(spacing: 16) {
+                        NavigationLink {
+                            ForecastView()
+                        } label: {
+                            Image(systemName: "chart.line.uptrend.xyaxis")
+                                .foregroundStyle(Theme.text2)
+                        }
+                        .accessibilityLabel("Cash-flow forecast")
+                        NavigationLink {
+                            InvestmentsView()
+                        } label: {
+                            Image(systemName: "chart.pie.fill")
+                                .foregroundStyle(Theme.text2)
+                        }
+                        .accessibilityLabel("Investments")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Text(displayMonth)
                         .font(.footnote)
@@ -52,6 +71,15 @@ struct FinanceView: View {
             EditBudgetSheet(target: t) {
                 Task { await load() }
             }
+        }
+        .sheet(item: $detailTxn) { t in
+            TransactionDetailSheet(
+                txn: t,
+                availableCategories: summary?.categories.map(\.category) ?? []
+            ) {
+                Task { await load() }
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -134,8 +162,26 @@ struct FinanceView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    // Ordered the same as the server's AllGroups so sections render in the
+    // expected sequence. Anything that comes back with an unknown group
+    // falls into the catch-all at the bottom.
+    private static let groupOrder = [
+        "Living Expenses",
+        "Transportation",
+        "Dining & Entertainment",
+        "Savings & Income",
+        "Miscellaneous",
+    ]
+
     private func categoryCard(_ s: FinanceSummary) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let grouped = Dictionary(grouping: s.categories) { cat in
+            cat.category_group ?? "Miscellaneous"
+        }
+        let sectionedGroups = Self.groupOrder
+            .filter { grouped[$0] != nil }
+            + grouped.keys.filter { !Self.groupOrder.contains($0) }.sorted()
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("BY CATEGORY")
                     .font(.caption2).bold().tracking(1).foregroundStyle(Theme.text3)
@@ -147,7 +193,41 @@ struct FinanceView: View {
                     .background(Color.white.opacity(0.08))
                     .clipShape(Capsule())
             }
-            ForEach(s.categories) { c in
+            ForEach(sectionedGroups, id: \.self) { groupName in
+                if let cats = grouped[groupName], !cats.isEmpty {
+                    groupSection(name: groupName, categories: cats)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    @ViewBuilder
+    private func groupSection(name: String, categories: [CategorySummary]) -> some View {
+        let totalSpent = categories.reduce(Int64(0)) { $0 + $1.spent_cents }
+        let totalBudget = categories.reduce(Int64(0)) { $0 + $1.budgeted_cents }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(name.uppercased())
+                    .font(.caption2).bold().tracking(1.2)
+                    .foregroundStyle(groupColor(name))
+                Spacer()
+                HStack(spacing: 4) {
+                    Text(totalSpent.asUSD(decimals: 0))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.text2)
+                    if totalBudget > 0 {
+                        Text("/ \(totalBudget.asUSD(decimals: 0))")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.text3)
+                    }
+                }
+            }
+            .padding(.top, 6)
+            ForEach(categories) { c in
                 Button {
                     editingTarget = budgetTargets.first { $0.category == c.category }
                 } label: {
@@ -156,10 +236,16 @@ struct FinanceView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func groupColor(_ name: String) -> Color {
+        switch name {
+        case "Living Expenses":         return Theme.healthBlue
+        case "Transportation":          return Theme.healthMid
+        case "Dining & Entertainment":  return Theme.ai
+        case "Savings & Income":        return Theme.finance
+        default:                        return Theme.text3
+        }
     }
 
     private var recentTransactionsCard: some View {
@@ -179,7 +265,10 @@ struct FinanceView: View {
             }
             .padding(.bottom, 6)
             ForEach(transactions) { t in
-                TransactionRow(txn: t)
+                Button { detailTxn = t } label: {
+                    TransactionRow(txn: t)
+                }
+                .buttonStyle(.plain)
                 if t.id != transactions.last?.id {
                     Divider().overlay(Theme.border)
                 }

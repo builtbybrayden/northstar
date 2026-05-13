@@ -14,6 +14,7 @@ services:
       NORTHSTAR_DB_PATH: /data/northstar.db
       NORTHSTAR_LISTEN_ADDR: ":8080"
       NORTHSTAR_FINANCE_SIDECAR_URL: "http://sidecar:9090"
+      NORTHSTAR_HEALTH_SIDECAR_URL: "http://whoop-sidecar:9091"
     volumes:
       - northstar-data:/data
     ports:
@@ -21,11 +22,16 @@ services:
     depends_on:
       sidecar:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/health > /dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      whoop-sidecar:
+        condition: service_healthy
+    # Lets the server reach the host's claude-cli-bridge via
+    # host.docker.internal on Linux. Already built-in on Docker Desktop
+    # (Mac/Windows); the line is a no-op there.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # No healthcheck: distroless/static has no shell or wget. The server's
+    # own `/api/health` endpoint is reachable from the host on port 8080
+    # for clients that want to probe externally.
 
   sidecar:
     build:
@@ -39,10 +45,51 @@ services:
       SIDECAR_HOST: "0.0.0.0"
       SIDECAR_PORT: "9090"
       SIDECAR_SHARED_SECRET: ${NORTHSTAR_FINANCE_SIDECAR_SECRET:-}
+    # Lets the sidecar reach the host's Actual server via
+    # host.docker.internal on Linux. Already built-in on Docker Desktop
+    # (Mac/Windows); the line is a no-op there.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "9090"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/health > /dev/null || exit 1"]
+      # Debian slim doesn't ship wget — use Node's built-in HTTP client.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:9090/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  whoop-sidecar:
+    build:
+      context: ../tools/whoop-sidecar
+      dockerfile: Dockerfile
+    image: northstar/whoop-sidecar:dev
+    container_name: northstar-whoop-sidecar
+    restart: unless-stopped
+    environment:
+      NORTHSTAR_HEALTH_MODE: ${NORTHSTAR_HEALTH_MODE:-mock}
+      SIDECAR_HOST: "0.0.0.0"
+      SIDECAR_PORT: "9091"
+      SIDECAR_SHARED_SECRET: ${NORTHSTAR_HEALTH_SIDECAR_SECRET:-}
+      WHOOP_CLIENT_ID: ${WHOOP_CLIENT_ID:-}
+      WHOOP_CLIENT_SECRET: ${WHOOP_CLIENT_SECRET:-}
+      WHOOP_REFRESH_TOKEN: ${WHOOP_REFRESH_TOKEN:-}
+      WHOOP_REDIRECT_URI: ${WHOOP_REDIRECT_URI:-http://localhost:9091/oauth/callback}
+    # Publish port 9091 to the host so the browser-driven OAuth flow can
+    # land back on /oauth/callback. Refresh token is persisted into the
+    # northstar-data volume so the user doesn't need to re-consent after
+    # a container rebuild.
+    ports:
+      - "9091:9091"
+    volumes:
+      # Dedicated volume — can't share with northstar-data because the
+      # server image runs as distroless UID 65532 and this sidecar runs as
+      # `app` (UID 1000ish), so a shared volume hits cross-owner permission
+      # errors when either tries to write.
+      - whoop-data:/home/app/.northstar
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9091/health > /dev/null || exit 1"]
       interval: 15s
       timeout: 3s
       retries: 5
@@ -67,3 +114,5 @@ services:
 volumes:
   northstar-data:
     name: northstar-data
+  whoop-data:
+    name: northstar-whoop-data

@@ -1,0 +1,14 @@
+{
+  "name": "northstar-claude-cli-bridge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Host-side HTTP wrapper around the local `claude` CLI so the dockerized Northstar server can use CLI-mode without an Anthropic API key.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

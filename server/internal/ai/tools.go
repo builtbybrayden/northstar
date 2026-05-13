@@ -213,7 +213,7 @@ func (d *ToolDispatcher) financeSummary(ctx context.Context, raw json.RawMessage
 		        COALESCE(-SUM(CASE WHEN amount_cents < 0 THEN amount_cents END), 0)
 		   FROM fin_transactions t JOIN fin_accounts a ON a.actual_id = t.account_id
 		  WHERE t.date LIKE ? AND a.on_budget = 1
-		    AND COALESCE(t.category,'') != 'Transfer'`, monthLike).
+		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')`, monthLike).
 		Scan(&o.IncomeCents, &o.SpentCents); err != nil {
 		return "", err
 	}
@@ -222,7 +222,8 @@ func (d *ToolDispatcher) financeSummary(ctx context.Context, raw json.RawMessage
 		`SELECT b.category,
 		        COALESCE(-(SELECT SUM(amount_cents) FROM fin_transactions t
 		                   JOIN fin_accounts a ON a.actual_id = t.account_id
-		                   WHERE t.category = b.category AND t.date LIKE ?
+		                   WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = b.category
+		                     AND t.date LIKE ?
 		                     AND t.amount_cents < 0 AND a.on_budget = 1), 0),
 		        b.monthly_cents
 		   FROM fin_budget_targets b ORDER BY b.category ASC`, monthLike)
@@ -261,7 +262,7 @@ func (d *ToolDispatcher) financeSearchTransactions(ctx context.Context, raw json
 		args = append(args, "%"+a.Payee+"%")
 	}
 	if a.Category != "" {
-		clauses = append(clauses, "t.category = ?")
+		clauses = append(clauses, "COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = ?")
 		args = append(args, a.Category)
 	}
 	if a.Since != "" {
@@ -272,7 +273,9 @@ func (d *ToolDispatcher) financeSearchTransactions(ctx context.Context, raw json
 		clauses = append(clauses, "t.date <= ?")
 		args = append(args, a.Until)
 	}
-	q := `SELECT t.actual_id, t.date, t.payee, t.category, t.amount_cents
+	q := `SELECT t.actual_id, t.date, t.payee,
+	             COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) AS effective_category,
+	             t.amount_cents
 	        FROM fin_transactions t WHERE ` + strings.Join(clauses, " AND ") +
 		` ORDER BY t.date DESC LIMIT 50`
 	rows, err := d.DB.QueryContext(ctx, q, args...)
@@ -320,7 +323,8 @@ func (d *ToolDispatcher) financeCategoryHistory(ctx context.Context, raw json.Ra
 		`SELECT substr(date, 1, 7) AS month,
 		        -SUM(amount_cents) AS spent
 		   FROM fin_transactions
-		  WHERE category = ? AND amount_cents < 0
+		  WHERE COALESCE(NULLIF(category_user,''), COALESCE(category,'')) = ?
+		    AND amount_cents < 0
 		    AND date >= date('now', '-12 months')
 		  GROUP BY month ORDER BY month ASC`, a.Category)
 	if err != nil {

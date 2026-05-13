@@ -2,7 +2,7 @@
 
 A self-hosted iOS app that ties together your **finance** (Actual Budget), **goals** (native), and **biometrics** (WHOOP) — with Claude as a cross-pillar brain.
 
-> Status: **Phases 0–5 + Phase 6 partial + ops-polish + iOS polish + pillar-scope** (2026-05-12). All pillars functional in mock mode end-to-end — boot it, pair a phone, you have a working dashboard. Apple Dev Program path (TestFlight, App Store, APNs production sender) explicitly deferred. Polish wave: admin-token gate, initial-sync purchase-spam suppression, supplement reminder auto-firing with schedule UI, per-category quiet hours UI, sleep + overreach health detectors, SSE live-notification fanout, Anthropic token-usage telemetry, chat stream cancel + conversation rename + scope picker + inline tool-error surfacing. **7 server packages now pass tests (added `db` + `scheduler` coverage); 38 total new tests across the wave (17 polish + 21 covering migrations/filter/normalize/scheduler).**
+> Status: **Phases 0–7 substantially complete** (2026-05-13). All pillars functional in mock mode end-to-end — boot it, pair a phone, you have a working dashboard. Apple Dev Program path (TestFlight, App Store, APNs production sender, Watch glance, Widget, Live Activity) explicitly deferred until enrollment. Phase 6 launch prep complete (docs site, installers, CONTRIBUTING / SECURITY / ROADMAP, GitHub templates, Show HN draft). Phase 7 shipped: per-transaction category override + tap-to-edit detail sheet, `cli` AI mode that shells out to a local `claude` binary (no Anthropic key needed), cash-flow forecast with recurring detection + projection chart, habit tracker with 90-day heatmap, investment portfolio view over off-budget accounts grouped by asset class. **7 server packages pass tests; 28 new tests across the Phase 7 wave (7 txn override + 5 CLI + 10 forecast + 9 habits + 2 investments).** HealthKit ingest + Apple Watch glance + receipt OCR remain explicitly out of scope or deferred.
 
 Full docs at `docs-site/` — `cd docs-site && npm install && npm run dev` for the local site.
 
@@ -176,12 +176,15 @@ Or just double-click `mockups/index.html`.
 - ✅ **AI tests** — 8 cases covering `finance_summary` aggregation, `finance_search_transactions` payee filter, `goals_milestones` archived-exclusion + status-in filter, `health_today` push/maintain/recover verdict bands, unknown-tool error, last-tool + last-system-block cache_control invariants
 - ✅ **Verified live in mock mode**: paired a device → created a conversation → sent "Should I push hard today?" → SSE emitted `tool_call:health_today` then 21 text chunks embedding real DB data (recovery 84, verdict "push") then `done`; conversation auto-titled; both messages persisted
 
-## Phase 6 partial (shipped 2026-05-12)
+## Phase 6 (shipped 2026-05-12 → 2026-05-13)
 
 - ✅ **`docs-site/`** — Astro + Starlight documentation site. 22 pages spanning getting-started / pillars / configuration / api / operating / contributing. Runs locally via `npm install && npm run dev`. Build is static HTML — host on Cloudflare Pages / Netlify / GitHub Pages.
 - ✅ **One-shot installers** — `scripts/install.sh` (Linux/macOS) + `scripts/install.ps1` (Windows + Docker Desktop). Idempotent: verifies Docker, provisions `~/.northstar/`, generates master passphrase + admin token, boots compose, prints pairing code. Matching `uninstall.{sh,ps1}`.
-- ✅ **CONTRIBUTING.md** at the workspace root — opinionated about what's in/out of scope (no telemetry ever; no new pillars; no third-party iOS SDKs).
-- ⏸ **CODE_OF_CONDUCT + SECURITY + ROADMAP + GH templates + Show HN draft** — paused; pick up when launch is closer.
+- ✅ **`CONTRIBUTING.md`** — opinionated about what's in/out of scope (no telemetry ever; no new pillars; no third-party iOS SDKs).
+- ✅ **`SECURITY.md`** — disclosure inbox + 5-day ack / 30-day fix targets; in/out-of-scope list; explicit "no bounty, credit only" position.
+- ✅ **`ROADMAP.md`** — Shipped / Next up / Phase 7 likely / Phase 8 maybe / Won't do. Ordered list, no calendar dates.
+- ✅ **GitHub templates** — `.github/ISSUE_TEMPLATE/{bug_report,pillar_question}.yml` + `config.yml` (security + docs + roadmap contact links, blank issues off) + `PULL_REQUEST_TEMPLATE.md` with the scope checklist from CONTRIBUTING.md.
+- ✅ **Show HN draft** at `docs/SHOW-HN.md` — 3 title options + body + pre-post checklist gating on TestFlight + real-mode smoke tests. Not for posting until those preconditions clear.
 
 ## Server / infra polish (shipped 2026-05-12)
 
@@ -198,9 +201,7 @@ Or just double-click `mockups/index.html`.
 
 - **Apple Developer Program-blocked:** TestFlight pipeline, App Store submission, APNs production sender (`sideshow/apns2`), Live Activity for budget thresholds, lock-screen Widget for net worth.
 - **Credential-blocked smoke tests:** `NORTHSTAR_AI_MODE=anthropic` against a real Claude key; Actual sidecar in `real` mode; WHOOP sidecar in `real` mode (WHOOP dev account approval lag).
-- **Pillar-scope filtering** — `pillar_scope` column exists on `ai_conversations` and defaults to `[]`, but neither the server filter nor a UI to set it has been wired. Cosmetic until both sides land.
-- **Phase 6 launch finish** — CODE_OF_CONDUCT + SECURITY + ROADMAP + GitHub issue/PR templates + Show HN draft.
-- **Phase 7** — HealthKit ingest, Apple Watch glance, Android (Compose) community port, multi-user / family accounts, investment portfolio view, habit tracker beyond `goal_milestones`, cash-flow forecast view, receipt OCR.
+- **Phase 7** — see [`ROADMAP.md`](./ROADMAP.md). HealthKit ingest, Apple Watch glance, cash-flow forecast, habit tracker, receipt OCR, investment portfolio view; eventually Android port + multi-user.
 
 ## License
 

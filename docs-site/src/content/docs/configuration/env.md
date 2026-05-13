@@ -49,9 +49,10 @@ Disabling a pillar skips both its sync worker and its REST mount.
 
 | Var | Default | Notes |
 |---|---|---|
-| `NORTHSTAR_AI_MODE` | `mock` | `mock` runs the keyword-routed engine; `anthropic` calls Claude |
+| `NORTHSTAR_AI_MODE` | `mock` | `mock` keyword-routed engine; `anthropic` Claude API (needs key); `cli` shells out to local `claude` |
 | `NORTHSTAR_CLAUDE_API_KEY` | *(empty)* | Required when mode is `anthropic` |
-| `NORTHSTAR_AI_MODEL` | `claude-sonnet-4-6` | Override for newer / cheaper models |
+| `NORTHSTAR_AI_MODEL` | `claude-sonnet-4-6` | Model override; honored by both `anthropic` and `cli` modes |
+| `NORTHSTAR_CLI_BIN` | `claude` | Path to the `claude` binary when mode is `cli` |
 
 ## Sidecar-internal vars
 

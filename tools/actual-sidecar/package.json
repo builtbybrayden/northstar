@@ -13,6 +13,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@actual-app/api": "^25.1.0"
+    "@actual-app/api": "^26.5.2"
   }
 }

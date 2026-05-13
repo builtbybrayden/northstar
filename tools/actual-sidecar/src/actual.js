@@ -1,6 +1,13 @@
 // Real Actual mode — wraps @actual-app/api. Lazy-loaded so mock mode
 // works without the dependency installed.
 
+// @actual-app/api ≥26 references `navigator.userAgent` at module load,
+// which is undefined in plain Node. Polyfill it before the dynamic
+// import so the package can boot in our sidecar.
+if (typeof globalThis.navigator === 'undefined') {
+  globalThis.navigator = { userAgent: 'northstar-actual-sidecar/0.0.1 node' };
+}
+
 let api = null;
 let initialized = false;
 
@@ -64,15 +71,26 @@ export async function transactions({ since } = {}) {
   const sinceStr = since || '1970-01-01';
   const today = new Date().toISOString().slice(0, 10);
 
+  // Build payee-id → name lookup so transactions show readable names
+  // instead of UUIDs. Actual returns r.payee as the foreign-key id; the
+  // sidecar's prior version assumed r.payee_name was always populated,
+  // which is only true for unmatched literals.
+  const payees = await a.getPayees();
+  const payeeName = new Map();
+  for (const p of payees) {
+    payeeName.set(p.id, p.name || '');
+  }
+
   const out = [];
   for (const acc of accs) {
     const rows = await a.getTransactions(acc.id, sinceStr, today);
     for (const r of rows) {
+      const name = r.payee_name || payeeName.get(r.payee) || r.imported_payee || '';
       out.push({
         id: r.id,
         account: acc.id,
         date: r.date,
-        payee: r.payee_name || r.payee || '',
+        payee: name,
         category: r.category || null,
         amount: r.amount,         // cents (negative = outflow)
         notes: r.notes || '',

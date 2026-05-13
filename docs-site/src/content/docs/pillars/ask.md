@@ -52,7 +52,7 @@ The mock engine routes by keyword:
 The actual SQLite data flows through, so the dashboard's numbers match the
 chat's numbers even without an Anthropic key.
 
-## Real mode
+## Real mode — Anthropic API
 
 ```ini
 NORTHSTAR_AI_MODE=anthropic
@@ -62,7 +62,45 @@ NORTHSTAR_AI_MODEL=claude-sonnet-4-6
 
 Claude streams over SSE; each event is one of `text`, `tool_call`, `done`, or
 `error`. The iOS app renders tool-call markers inline so you can see which tool
-fired before the text arrived.
+fired before the text arrived. Token usage (input / output / cache-read /
+cache-creation) is persisted on every assistant message.
+
+## Real mode — local Claude CLI
+
+If you'd rather not give Northstar an Anthropic API key, point it at a locally
+installed [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) instead:
+
+```ini
+NORTHSTAR_AI_MODE=cli
+NORTHSTAR_CLI_BIN=claude               # exec path; only used when the
+                                       # server runs outside Docker
+NORTHSTAR_AI_MODEL=claude-sonnet-4-6   # optional --model passthrough
+# When the server runs in Docker, exec can't see the host's PATH. Point
+# at the host-side bridge instead:
+NORTHSTAR_CLI_BRIDGE_URL=http://host.docker.internal:9092
+NORTHSTAR_CLI_BRIDGE_SECRET=           # optional shared secret
+```
+
+The bridge is a tiny Node script at `tools/claude-cli-bridge/` that you run
+on the host (`node src/server.js`). It accepts `POST /prompt` and shells out
+to `claude -p` locally. The dockerized server reaches it via
+`host.docker.internal:9092`. Without the bridge, set
+`NORTHSTAR_CLI_BRIDGE_URL=` empty and the server will try to `exec claude`
+directly — which works when the server itself runs on the host.
+
+Trade-offs vs the API mode:
+
+- No live tool-use loop. Before invoking the CLI, the server pre-fetches a
+  snapshot of each pillar (the same data the API-mode tools would return) and
+  inlines it into the system prompt. The model sees a frozen view of pillar
+  state at request time.
+- Reply streaming is faked client-side — the CLI returns the full reply at
+  once, the server chunks it before forwarding. The iOS surface is identical.
+- Token usage telemetry is unavailable on this path; `usage_json` is NULL for
+  CLI-mode messages.
+
+This is the right mode for a single-operator setup where you've already paid
+for Claude Code and don't want a second API bill.
 
 ## Safety rail
 

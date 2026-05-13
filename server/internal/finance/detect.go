@@ -140,7 +140,7 @@ func (d *Detector) CheckThresholds(ctx context.Context) error {
 		SELECT b.category,
 		       COALESCE((SELECT -SUM(t.amount_cents) FROM fin_transactions t
 		                 JOIN fin_accounts a ON a.actual_id = t.account_id
-		                 WHERE t.category = b.category
+		                 WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = b.category
 		                   AND t.date LIKE ?
 		                   AND t.amount_cents < 0
 		                   AND a.on_budget = 1), 0) AS spent,

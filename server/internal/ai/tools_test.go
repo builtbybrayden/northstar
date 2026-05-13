@@ -24,10 +24,12 @@ func inProcDB(t *testing.T) *sql.DB {
 		   actual_id TEXT PRIMARY KEY, name TEXT, type TEXT,
 		   balance_cents INTEGER NOT NULL DEFAULT 0, on_budget INTEGER NOT NULL DEFAULT 1,
 		   closed INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`,
+		// Order matches production: `category_user` is appended by 00004
+		// migration, after `imported_at`.
 		`CREATE TABLE fin_transactions (
 		   actual_id TEXT PRIMARY KEY, account_id TEXT, date TEXT,
 		   payee TEXT, category TEXT, amount_cents INTEGER NOT NULL,
-		   notes TEXT, imported_at INTEGER NOT NULL)`,
+		   notes TEXT, imported_at INTEGER NOT NULL, category_user TEXT)`,
 		`CREATE TABLE fin_budget_targets (
 		   category TEXT PRIMARY KEY, monthly_cents INTEGER NOT NULL,
 		   rationale TEXT, threshold_pcts TEXT NOT NULL DEFAULT '[50,75,90,100]',
@@ -103,9 +105,12 @@ func TestDispatch_FinanceSummary(t *testing.T) {
 func TestDispatch_FinanceSearch_PayeeFilter(t *testing.T) {
 	now := time.Date(2026, 5, 12, 14, 0, 0, 0, time.UTC)
 	d := makeDispatcher(t, now)
-	_, _ = d.DB.Exec(`INSERT INTO fin_accounts VALUES ('a1', 'Chase', '', 0, 1, 0, 0)`)
-	_, _ = d.DB.Exec(`INSERT INTO fin_transactions VALUES ('t1', 'a1', '2026-05-10', 'Starbucks #4', 'Restaurants', -745, '', 0)`)
-	_, _ = d.DB.Exec(`INSERT INTO fin_transactions VALUES ('t2', 'a1', '2026-05-10', 'Kroger',       'Groceries',  -8412, '', 0)`)
+	_, _ = d.DB.Exec(`INSERT INTO fin_accounts (actual_id, name, type, balance_cents, on_budget, closed, updated_at)
+		VALUES ('a1', 'Chase', '', 0, 1, 0, 0)`)
+	_, _ = d.DB.Exec(`INSERT INTO fin_transactions (actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
+		VALUES ('t1', 'a1', '2026-05-10', 'Starbucks #4', 'Restaurants', -745, '', 0)`)
+	_, _ = d.DB.Exec(`INSERT INTO fin_transactions (actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
+		VALUES ('t2', 'a1', '2026-05-10', 'Kroger',       'Groceries',  -8412, '', 0)`)
 
 	out, err := d.Dispatch(context.Background(), "finance_search_transactions",
 		json.RawMessage(`{"payee":"starbucks"}`))

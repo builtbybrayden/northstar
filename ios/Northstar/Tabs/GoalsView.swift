@@ -226,6 +226,12 @@ struct GoalsView: View {
                     NetworkingLogView()
                 }
                 Divider().overlay(Theme.border).padding(.leading, 56)
+                navRow(icon: "checkmark.square.fill", color: Theme.finance,
+                       title: "Habits",
+                       sub: "Daily streaks + 90-day heatmap") {
+                    HabitsView()
+                }
+                Divider().overlay(Theme.border).padding(.leading, 56)
                 navRow(icon: "bell.fill", color: Theme.healthMid,
                        title: "Reminders",
                        sub: "Cron-driven nudges") {

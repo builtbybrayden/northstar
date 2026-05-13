@@ -1,0 +1,80 @@
+name: Bug
+description: Something is broken or behaving unexpectedly in Northstar.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Before filing, please make sure:
+        - You've reproduced against `main`
+        - This isn't a security issue (those go to brayden.arnold@gmail.com — see SECURITY.md)
+
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the stack? e.g. `server`, `actual-sidecar`, `whoop-sidecar`, `ios`, `infra`, `docs-site`, `installer`
+      placeholder: server
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA
+      description: Output of `git rev-parse HEAD` in the affected repo
+      placeholder: 4327dab
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: What did you do? Numbered list preferred.
+      placeholder: |
+        1. `docker compose up -d server`
+        2. `curl -X POST http://localhost:8080/api/pair/initiate -d '{}'`
+        3. Observed ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      placeholder: A 200 with a 6-digit code.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: Include any error messages.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs around the failure
+      description: Paste the relevant lines from `docker compose logs server` or `xcrun simctl spawn booted log stream` (iOS).
+      render: shell
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Whichever apply — `go version`, `node --version`, iOS version + device, Docker version.
+      placeholder: go1.23.4, node v22, iOS 17.5 on iPhone 15
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I reproduced against the latest `main`
+          required: true
+        - label: This is not a security issue
+          required: true

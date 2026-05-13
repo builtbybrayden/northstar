@@ -92,6 +92,41 @@ struct APIClient {
     func financeAccounts() async throws -> [Account] {
         try await get(path: "/api/finance/accounts")
     }
+    func financeForecast(days: Int = 90) async throws -> Forecast {
+        try await get(path: "/api/finance/forecast?days=\(days)")
+    }
+    func financeInvestments() async throws -> Investments {
+        try await get(path: "/api/finance/investments")
+    }
+
+    /// Apply a user category override to a single transaction.
+    /// Pass `nil` to clear the override and revert to the upstream value.
+    struct TransactionUpdate: Encodable {
+        var category: String? = nil
+        /// When true, encodes `"category": null` so the server treats it as
+        /// an explicit reset. Otherwise the field is encoded as a string.
+        var resetCategory: Bool = false
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            if resetCategory {
+                try c.encodeNil(forKey: .category)
+            } else if let category {
+                try c.encode(category, forKey: .category)
+            }
+        }
+        enum CodingKeys: String, CodingKey { case category }
+    }
+    func updateTransactionCategory(id: String, category: String) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        try await patchVoid(path: "/api/finance/transactions/\(e)",
+                            body: TransactionUpdate(category: category))
+    }
+    func resetTransactionCategory(id: String) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        try await patchVoid(path: "/api/finance/transactions/\(e)",
+                            body: TransactionUpdate(resetCategory: true))
+    }
 
     // ─── Budget targets (edit) ───────────────────────────────────────────
 
@@ -103,6 +138,7 @@ struct APIClient {
         var monthly_cents: Int64?
         var threshold_pcts: [Int]?
         var push_enabled: Bool?
+        var category_group: String?
     }
     func updateBudgetTarget(category: String, _ u: BudgetTargetUpdate) async throws {
         let encoded = category.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? category
@@ -164,6 +200,40 @@ struct APIClient {
     func archiveMilestone(id: String) async throws {
         let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         _ = try await send(method: "DELETE", path: "/api/goals/milestones/\(e)", body: nil)
+    }
+
+    // ─── Habits ───────────────────────────────────────────────────────────
+
+    func listHabits(days: Int = 90, includeInactive: Bool = false) async throws -> [HabitWithStats] {
+        var path = "/api/goals/habits?days=\(days)"
+        if includeInactive { path += "&inactive=1" }
+        return try await get(path: path)
+    }
+
+    struct HabitInput: Encodable {
+        var name: String?
+        var description_md: String?
+        var color: String?
+        var target_per_week: Int?
+        var active: Bool?
+        var display_order: Int?
+    }
+    func createHabit(_ in_: HabitInput) async throws -> Habit {
+        try await post(path: "/api/goals/habits", body: in_)
+    }
+    func updateHabit(id: String, _ in_: HabitInput) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        try await patchVoid(path: "/api/goals/habits/\(e)", body: in_)
+    }
+    func deleteHabit(id: String) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        _ = try await send(method: "DELETE", path: "/api/goals/habits/\(e)", body: nil)
+    }
+    /// Toggle done/skip for (habit, date). Passing nil body lets the server
+    /// flip the current count.
+    func toggleHabitLog(habitID: String, date: String) async throws -> HabitEntry {
+        let e = habitID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? habitID
+        return try await putWithOptionalBody(path: "/api/goals/habits/\(e)/log/\(date)")
     }
 
     func dailyLog(date: String? = nil) async throws -> DailyLog {
@@ -486,6 +556,13 @@ struct APIClient {
     private func patchVoid<Req: Encodable>(path: String, body: Req) async throws {
         let encoded = try JSONEncoder().encode(body)
         _ = try await send(method: "PATCH", path: path, body: encoded)
+    }
+
+    /// PUT with no body, decoding the response. Used for endpoints that
+    /// act as toggles (e.g., habit log) where state is server-derived.
+    private func putWithOptionalBody<Resp: Decodable>(path: String) async throws -> Resp {
+        let data = try await send(method: "PUT", path: path, body: nil)
+        return try decode(data)
     }
 
     /// Resolve a path (e.g. `/api/finance/transactions?limit=25`) against the

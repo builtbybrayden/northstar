@@ -1,13 +1,17 @@
 package finance
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
 )
+
+func newJSONReader(b []byte) io.Reader { return bytes.NewReader(b) }
 
 // SidecarClient talks to tools/actual-sidecar over localhost HTTP.
 type SidecarClient struct {
@@ -63,9 +67,47 @@ type SidecarHealth struct {
 	Version string `json:"version"`
 }
 
+// InitParams are the credentials forwarded to the sidecar's POST /init route.
+// In mock mode init is a no-op; in actual mode the sidecar uses these to
+// connect to an Actual server and download the budget into its local cache.
+type InitParams struct {
+	ServerURL          string `json:"serverURL"`
+	Password           string `json:"password"`
+	SyncID             string `json:"syncId"`
+	EncryptionPassword string `json:"encryptionPassword,omitempty"`
+	DataDir            string `json:"dataDir,omitempty"`
+}
+
 func (c *SidecarClient) Health(ctx context.Context) (*SidecarHealth, error) {
 	var out SidecarHealth
 	return &out, c.get(ctx, "/health", nil, &out)
+}
+
+// Init forwards Actual credentials to the sidecar. Must complete successfully
+// before Accounts/Transactions/etc. work in real mode.
+func (c *SidecarClient) Init(ctx context.Context, p InitParams) error {
+	body, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/init",
+		newJSONReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Secret != "" {
+		req.Header.Set("X-Sidecar-Secret", c.Secret)
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return fmt.Errorf("sidecar /init: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("sidecar /init: status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (c *SidecarClient) Accounts(ctx context.Context) ([]SidecarAccount, error) {

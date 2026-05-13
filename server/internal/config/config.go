@@ -25,6 +25,14 @@ type Config struct {
 		SidecarSecret string
 		SyncInterval  time.Duration
 		Enabled       bool
+		// Mode controls which provider the sidecar uses. When "actual" the
+		// server forwards the Actual* creds below to the sidecar's /init at
+		// boot. "mock" (default) skips init entirely.
+		Mode               string
+		ActualServerURL    string
+		ActualPassword     string
+		ActualSyncID       string
+		ActualEncryption   string // empty if budget isn't e2e encrypted
 	}
 
 	Health struct {
@@ -35,9 +43,12 @@ type Config struct {
 	}
 
 	AI struct {
-		Mode     string // anthropic | mock
-		APIKey   string
-		Model    string
+		Mode         string // anthropic | mock | cli
+		APIKey       string
+		Model        string
+		CLIBin       string // path to `claude` CLI binary (Mode=cli, exec path)
+		CLIBridgeURL string // optional bridge URL (Mode=cli, HTTP path) — when set, overrides exec
+		CLIBridgeSecret string
 	}
 }
 
@@ -58,15 +69,23 @@ func Load() Config {
 	c.Finance.SidecarSecret = env("NORTHSTAR_FINANCE_SIDECAR_SECRET", "")
 	c.Finance.SyncInterval = time.Duration(envInt("NORTHSTAR_FINANCE_SYNC_SECONDS", 900)) * time.Second
 	c.Finance.Enabled = c.Pillars.Finance && envInt("NORTHSTAR_FINANCE_SYNC_ENABLED", 1) == 1
+	c.Finance.Mode = env("NORTHSTAR_FINANCE_MODE", "mock")
+	c.Finance.ActualServerURL = env("NORTHSTAR_ACTUAL_SERVER_URL", "")
+	c.Finance.ActualPassword = env("NORTHSTAR_ACTUAL_PASSWORD", "")
+	c.Finance.ActualSyncID = env("NORTHSTAR_ACTUAL_SYNC_ID", "")
+	c.Finance.ActualEncryption = env("NORTHSTAR_ACTUAL_ENCRYPTION_PASSWORD", "")
 
 	c.Health.SidecarURL = env("NORTHSTAR_HEALTH_SIDECAR_URL", "http://127.0.0.1:9091")
 	c.Health.SidecarSecret = env("NORTHSTAR_HEALTH_SIDECAR_SECRET", "")
 	c.Health.SyncInterval = time.Duration(envInt("NORTHSTAR_HEALTH_SYNC_SECONDS", 900)) * time.Second
 	c.Health.Enabled = c.Pillars.Health && envInt("NORTHSTAR_HEALTH_SYNC_ENABLED", 1) == 1
 
-	c.AI.Mode = env("NORTHSTAR_AI_MODE", "mock")     // mock by default — no API key needed
+	c.AI.Mode = env("NORTHSTAR_AI_MODE", "mock")     // mock | anthropic | cli
 	c.AI.APIKey = env("NORTHSTAR_CLAUDE_API_KEY", "")
 	c.AI.Model = env("NORTHSTAR_AI_MODEL", "claude-sonnet-4-6")
+	c.AI.CLIBin = env("NORTHSTAR_CLI_BIN", "claude")
+	c.AI.CLIBridgeURL = env("NORTHSTAR_CLI_BRIDGE_URL", "")
+	c.AI.CLIBridgeSecret = env("NORTHSTAR_CLI_BRIDGE_SECRET", "")
 	return c
 }
 

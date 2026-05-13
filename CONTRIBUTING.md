@@ -60,8 +60,9 @@ Highlights:
 By contributing, you agree your contribution will be licensed under MIT.
 There's no CLA — your `git` author is the record.
 
-## Code of conduct
+## Conduct
 
-This project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md).
-The short version: be kind, assume good faith, leave the project a slightly
-better place than you found it.
+Be kind, assume good faith, leave the project a slightly better place than
+you found it. Bad-faith conduct in issues or PRs gets you blocked without
+warning — there's no formal process because this is a one-person project
+and I don't have the bandwidth to run one.

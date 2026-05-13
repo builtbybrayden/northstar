@@ -1,0 +1,60 @@
+name: Pillar question
+description: Float an idea before writing code. The project is opinionated about scope.
+labels: ["pillar-question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing a PR for a new feature, please open one of these.
+        The four pillars (Finance / Goals / Health / Ask) are intentional;
+        we're more likely to fold something into an existing pillar than to
+        add a new one.
+
+        See [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md) and
+        [ROADMAP.md](../blob/main/ROADMAP.md) for the current scope.
+
+  - type: dropdown
+    id: pillar
+    attributes:
+      label: Which pillar does this belong to?
+      options:
+        - Finance
+        - Goals
+        - Health
+        - Ask (AI)
+        - Cross-pillar (infrastructure, installer, docs)
+        - I'm not sure — that's part of the question
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What are you proposing?
+      description: One paragraph. What's the feature, and what would the user-visible behavior be?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it belong in Northstar (versus a separate tool)?
+      description: Be concrete. What does the cross-pillar layer (the Ask brain, the unified UI, the shared notification engine) buy here that a standalone app wouldn't?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Smallest version that would still be valuable
+      description: Helps us avoid over-scoping the first PR.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I've read CONTRIBUTING.md and ROADMAP.md
+          required: true
+        - label: This isn't already covered by an existing pillar or the roadmap
+          required: true
