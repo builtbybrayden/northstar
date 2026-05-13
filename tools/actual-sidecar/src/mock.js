@@ -21,10 +21,11 @@ export function mockAccounts() {
     { id: 'acc-apple-card',       name: 'Apple Card',                   offbudget: false, closed: false, balance: -28341  },
     { id: 'acc-amex-platinum',    name: 'Amex Platinum (2008)',         offbudget: false, closed: false, balance: -89412  },
     { id: 'acc-chase-sapphire',   name: 'Chase Sapphire (7499)',        offbudget: false, closed: false, balance: -41208  },
+    { id: 'acc-house',            name: 'House (estimated value)',      offbudget: true,  closed: false, balance: 38500000  },
     { id: 'acc-chase-mortgage',   name: 'Chase Mortgage (1040)',        offbudget: true,  closed: false, balance: -24800000 },
-    { id: 'acc-rh-individual',    name: 'Robinhood Individual',         offbudget: true,  closed: false, balance: 2840100 },
-    { id: 'acc-rh-crypto',        name: 'Robinhood Crypto',             offbudget: true,  closed: false, balance: 412800  },
-    { id: 'acc-401k',             name: 'American Express 401k',        offbudget: true,  closed: false, balance: 1554200 },
+    { id: 'acc-rh-individual',    name: 'Robinhood Individual',         offbudget: true,  closed: false, balance: 2840100   },
+    { id: 'acc-rh-crypto',        name: 'Robinhood Crypto',             offbudget: true,  closed: false, balance: 412800    },
+    { id: 'acc-401k',             name: 'American Express 401k',        offbudget: true,  closed: false, balance: 1554200   },
   ];
 }
 
