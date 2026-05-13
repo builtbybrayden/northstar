@@ -380,8 +380,7 @@ struct APIClient {
         onEvent: @escaping (AIStreamEvent) -> Void
     ) async throws {
         let e = convID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? convID
-        let url = baseURL.appendingPathComponent("/api/ai/conversations/\(e)/messages")
-        var req = URLRequest(url: url)
+        var req = URLRequest(url: url(for: "/api/ai/conversations/\(e)/messages"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
@@ -422,8 +421,7 @@ struct APIClient {
     /// Returns when the server closes the stream or the task is cancelled.
     /// Caller is responsible for reconnect on failure (typically via `Task`).
     func notificationsStream(onEvent: @escaping (LiveNotification) -> Void) async throws {
-        let url = baseURL.appendingPathComponent("/api/notifications/stream")
-        var req = URLRequest(url: url)
+        var req = URLRequest(url: url(for: "/api/notifications/stream"))
         req.httpMethod = "GET"
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         if let bearer { req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
@@ -490,8 +488,17 @@ struct APIClient {
         _ = try await send(method: "PATCH", path: path, body: encoded)
     }
 
+    /// Resolve a path (e.g. `/api/finance/transactions?limit=25`) against the
+    /// base URL. `appendingPathComponent` percent-encodes `?` as `%3F`,
+    /// which turns query strings into 404s — string concatenation through
+    /// URL() handles both paths and query strings correctly.
+    private func url(for path: String) -> URL {
+        if let u = URL(string: baseURL.absoluteString + path) { return u }
+        return baseURL.appendingPathComponent(path)
+    }
+
     private func send(method: String, path: String, body: Data?) async throws -> Data {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
+        var req = URLRequest(url: url(for: path))
         req.httpMethod = method
         req.timeoutInterval = 20
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
