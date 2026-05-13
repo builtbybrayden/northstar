@@ -16,8 +16,10 @@ func (h *Handlers) ComposeBrief(ctx context.Context, now time.Time) (Brief, erro
 	today := now.UTC().Format("2006-01-02")
 	yesterday := now.UTC().AddDate(0, 0, -1).Format("2006-01-02")
 
-	// 1. Today's items (already-logged manual entries)
-	var todayItems []DailyItem
+	// 1. Today's items (already-logged manual entries).
+	// Initialize non-nil so JSON marshals as [] rather than null — iOS
+	// Brief.items is non-optional and would fail to decode null.
+	todayItems := []DailyItem{}
 	var streak int
 	var raw string
 	err := h.DB.QueryRowContext(ctx,
