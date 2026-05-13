@@ -277,15 +277,12 @@ struct GoalsView: View {
     }
 
     private func toggleItem(_ id: String, done: Bool) async {
-        guard let api = app.apiClient(), var b = brief else { return }
+        guard let api = app.apiClient(), let b = brief else { return }
         if let i = b.items.firstIndex(where: { $0.id == id }) {
-            // Optimistic update
-            var copy = b
-            copy.items = copy.items
-            // The above doesn't actually mutate; rebuild explicitly:
-            var items = copy.items
+            // Optimistic update — Brief.items is `let`, so rebuild Brief with
+            // a mutated items array rather than trying to mutate in place.
+            var items = b.items
             items[i].done = done
-            // Rebuild Brief with updated items
             brief = Brief(date: b.date,
                           items: items,
                           streak_count: b.streak_count,
