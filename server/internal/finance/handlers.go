@@ -193,6 +193,17 @@ func joinComma(parts []string) string {
 	return out
 }
 
+func joinAnd(parts []string) string {
+	out := ""
+	for i, p := range parts {
+		if i > 0 {
+			out += " AND "
+		}
+		out += p
+	}
+	return out
+}
+
 
 // ─── /api/finance/accounts ────────────────────────────────────────────────
 
@@ -252,15 +263,41 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
+	// Optional filters used by the iOS category drilldown view.
+	categoryFilter := r.URL.Query().Get("category")
+	monthFilter := r.URL.Query().Get("month") // YYYY-MM
+
 	// Starting Balances are Actual's one-time onboarding rows used to align
 	// the account with the real-world balance. They aren't real purchases and
 	// they bury actual activity in the feed. Hide them by default; flag
 	// `?include_starting=1` brings them back.
+	//
+	// Two-condition filter: category match catches rows Actual tagged
+	// (most), payee match catches rows where the category is empty/null on
+	// Actual's side (~33% of starting-balance rows in real-world data).
 	includeStarting := r.URL.Query().Get("include_starting") == "1"
-	startingFilter := ""
+
+	clauses := []string{}
+	args := []any{}
 	if !includeStarting {
-		startingFilter = ` WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Starting Balances'`
+		clauses = append(clauses,
+			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Starting Balances'`,
+			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`)
 	}
+	if categoryFilter != "" {
+		clauses = append(clauses,
+			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = ?`)
+		args = append(args, categoryFilter)
+	}
+	if monthFilter != "" {
+		clauses = append(clauses, `t.date LIKE ?`)
+		args = append(args, monthFilter+"-%")
+	}
+	where := ""
+	if len(clauses) > 0 {
+		where = ` WHERE ` + joinAnd(clauses)
+	}
+	args = append(args, limit)
 
 	rows, err := h.DB.QueryContext(r.Context(),
 		`SELECT t.actual_id, t.account_id, COALESCE(a.name,''), t.date,
@@ -270,9 +307,9 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 		             THEN COALESCE(t.category,'') ELSE '' END AS original,
 		        t.amount_cents, COALESCE(t.notes,'')
 		   FROM fin_transactions t
-		   LEFT JOIN fin_accounts a ON a.actual_id = t.account_id`+startingFilter+`
+		   LEFT JOIN fin_accounts a ON a.actual_id = t.account_id`+where+`
 		   ORDER BY t.date DESC, t.imported_at DESC
-		   LIMIT ?`, limit)
+		   LIMIT ?`, args...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -387,6 +424,17 @@ func nullStringToValue(n sql.NullString) any {
 	}
 	return n.String
 }
+
+// excludeNonSpendSQL is the predicate that drops Transfer and Starting
+// Balance rows from aggregate calculations. Centralized so the txn list,
+// summary, forecast, and AI tools all stay in sync.
+//
+// Two conditions because:
+//   - Transfer is always categorized (well-defined Actual category)
+//   - Starting Balances has ~30% of rows with NULL category in Actual, so
+//     a payee-substring fallback is needed
+const excludeNonSpendSQL = `COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')
+   AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`
 
 func trimSpaces(s string) string {
 	start, end := 0, len(s)
@@ -583,7 +631,7 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 		 FROM fin_transactions t
 		 JOIN fin_accounts a ON a.actual_id = t.account_id
 		 WHERE t.date LIKE ? AND a.on_budget = 1
-		   AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')`, monthLike).
+		   AND `+excludeNonSpendSQL+``, monthLike).
 		Scan(&resp.IncomeCents, &resp.SpentCents); err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return

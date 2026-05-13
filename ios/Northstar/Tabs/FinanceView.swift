@@ -24,7 +24,7 @@ struct FinanceView: View {
                     if let summary {
                         netWorthCard(summary)
                         ringsRow(summary)
-                        categoryCard(summary)
+                        groupCards(summary)
                     } else if loadError != nil {
                         errorCard
                     } else {
@@ -165,7 +165,7 @@ struct FinanceView: View {
     // Ordered the same as the server's AllGroups so sections render in the
     // expected sequence. Anything that comes back with an unknown group
     // falls into the catch-all at the bottom.
-    private static let groupOrder = [
+    static let groupOrder = [
         "Living Expenses",
         "Transportation",
         "Dining & Entertainment",
@@ -173,7 +173,11 @@ struct FinanceView: View {
         "Miscellaneous",
     ]
 
-    private func categoryCard(_ s: FinanceSummary) -> some View {
+    /// Builds one collapsible card per group, in `groupOrder`. Replaces the
+    /// older single "BY CATEGORY" card so the user can scan group totals
+    /// first and only expand the ones they care about.
+    @ViewBuilder
+    private func groupCards(_ s: FinanceSummary) -> some View {
         let grouped = Dictionary(grouping: s.categories) { cat in
             cat.category_group ?? "Miscellaneous"
         }
@@ -181,70 +185,18 @@ struct FinanceView: View {
             .filter { grouped[$0] != nil }
             + grouped.keys.filter { !Self.groupOrder.contains($0) }.sorted()
 
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("BY CATEGORY")
-                    .font(.caption2).bold().tracking(1).foregroundStyle(Theme.text3)
-                Spacer()
-                Text("\(s.categories.count) tracked")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.text3)
-                    .padding(.horizontal, 8).padding(.vertical, 2)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(Capsule())
-            }
-            ForEach(sectionedGroups, id: \.self) { groupName in
-                if let cats = grouped[groupName], !cats.isEmpty {
-                    groupSection(name: groupName, categories: cats)
-                }
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-    }
-
-    @ViewBuilder
-    private func groupSection(name: String, categories: [CategorySummary]) -> some View {
-        let totalSpent = categories.reduce(Int64(0)) { $0 + $1.spent_cents }
-        let totalBudget = categories.reduce(Int64(0)) { $0 + $1.budgeted_cents }
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(name.uppercased())
-                    .font(.caption2).bold().tracking(1.2)
-                    .foregroundStyle(groupColor(name))
-                Spacer()
-                HStack(spacing: 4) {
-                    Text(totalSpent.asUSD(decimals: 0))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.text2)
-                    if totalBudget > 0 {
-                        Text("/ \(totalBudget.asUSD(decimals: 0))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.text3)
+        ForEach(sectionedGroups, id: \.self) { groupName in
+            if let cats = grouped[groupName], !cats.isEmpty {
+                FinanceGroupCard(
+                    name: groupName,
+                    categories: cats,
+                    summaryMonth: s.month,
+                    availableCategories: s.categories.map(\.category),
+                    onEditBudget: { c in
+                        editingTarget = budgetTargets.first { $0.category == c.category }
                     }
-                }
+                )
             }
-            .padding(.top, 6)
-            ForEach(categories) { c in
-                Button {
-                    editingTarget = budgetTargets.first { $0.category == c.category }
-                } label: {
-                    CategoryBar(category: c)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func groupColor(_ name: String) -> Color {
-        switch name {
-        case "Living Expenses":         return Theme.healthBlue
-        case "Transportation":          return Theme.healthMid
-        case "Dining & Entertainment":  return Theme.ai
-        case "Savings & Income":        return Theme.finance
-        default:                        return Theme.text3
         }
     }
 
@@ -266,7 +218,7 @@ struct FinanceView: View {
             .padding(.bottom, 6)
             ForEach(transactions) { t in
                 Button { detailTxn = t } label: {
-                    TransactionRow(txn: t)
+                    FinanceTransactionRow(txn: t)
                 }
                 .buttonStyle(.plain)
                 if t.id != transactions.last?.id {
@@ -351,7 +303,9 @@ struct FinanceView: View {
     }
 }
 
-private struct CategoryBar: View {
+// Promoted out of `private` so `FinanceGroupCard` and
+// `CategoryTransactionsView` in sibling files can reuse the same rendering.
+struct FinanceCategoryBar: View {
     let category: CategorySummary
 
     var body: some View {
@@ -397,7 +351,8 @@ private struct CategoryBar: View {
     }
 }
 
-private struct TransactionRow: View {
+// Shared between the Recent list and the category drilldown.
+struct FinanceTransactionRow: View {
     let txn: Transaction
 
     var body: some View {

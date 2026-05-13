@@ -86,8 +86,18 @@ struct APIClient {
         let path = month.map { "/api/finance/summary?month=\($0)" } ?? "/api/finance/summary"
         return try await get(path: path)
     }
-    func financeTransactions(limit: Int = 50) async throws -> [Transaction] {
-        try await get(path: "/api/finance/transactions?limit=\(limit)")
+    func financeTransactions(limit: Int = 50,
+                             category: String? = nil,
+                             month: String? = nil) async throws -> [Transaction] {
+        var qs = ["limit=\(limit)"]
+        if let c = category {
+            let enc = c.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? c
+            qs.append("category=\(enc)")
+        }
+        if let m = month {
+            qs.append("month=\(m)")
+        }
+        return try await get(path: "/api/finance/transactions?" + qs.joined(separator: "&"))
     }
     func financeAccounts() async throws -> [Account] {
         try await get(path: "/api/finance/accounts")

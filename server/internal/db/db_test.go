@@ -139,6 +139,39 @@ func TestMigrate_SeededNotifRules(t *testing.T) {
 	}
 }
 
+// TestMigrate_SeedsRentAndVehiclePayments — migration 00007 seeds two
+// user-requested budget targets so the iOS category picker offers them
+// even before any transactions are re-categorized into them.
+func TestMigrate_SeedsRentAndVehiclePayments(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "seeds.db")
+	d, err := Open(tmp)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer d.Close()
+	if err := Migrate(d); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, c := range []struct {
+		name, group string
+	}{
+		{"Rent", "Living Expenses"},
+		{"Vehicle Payments", "Transportation"},
+	} {
+		var got string
+		err := d.QueryRow(
+			`SELECT category_group FROM fin_budget_targets WHERE category = ?`,
+			c.name).Scan(&got)
+		if err != nil {
+			t.Errorf("%s row missing: %v", c.name, err)
+			continue
+		}
+		if got != c.group {
+			t.Errorf("%s.category_group = %q, want %q", c.name, got, c.group)
+		}
+	}
+}
+
 // TestMigrate_UsageJSONWritable — the column added in migration 00003 must
 // accept the JSON shape the AI handler writes (input/output/cache_*_tokens).
 func TestMigrate_UsageJSONWritable(t *testing.T) {

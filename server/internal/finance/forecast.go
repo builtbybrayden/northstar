@@ -76,7 +76,7 @@ func Compute(ctx context.Context, db *sql.DB, today time.Time, horizonDays int) 
 		   FROM fin_transactions t
 		   JOIN fin_accounts a ON a.actual_id = t.account_id
 		  WHERE a.on_budget = 1 AND t.date >= ?
-		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')`, cutoff)
+		    AND `+excludeNonSpendSQL+``, cutoff)
 	if err != nil {
 		return Forecast{}, err
 	}

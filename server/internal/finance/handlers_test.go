@@ -310,6 +310,98 @@ func TestInvestments_ClassifyByName(t *testing.T) {
 	}
 }
 
+func TestListTransactions_CategoryAndMonthFilters(t *testing.T) {
+	db := inMemFinanceDB(t)
+	h := NewHandlers(db)
+	seedAcct := func(id string) {
+		_, _ = db.Exec(`INSERT OR IGNORE INTO fin_accounts
+			(actual_id, name, type, balance_cents, on_budget, closed, updated_at)
+			VALUES (?, ?, '', 0, 1, 0, 0)`, id, id)
+	}
+	seedAcct("a1")
+	mkTxn := func(id, date, payee, category string, amt int64) {
+		_, _ = db.Exec(`INSERT INTO fin_transactions
+			(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
+			VALUES (?, 'a1', ?, ?, ?, ?, '', 0)`, id, date, payee, category, amt)
+	}
+	mkTxn("a", "2026-05-04", "Kroger",     "Groceries",   -3200)
+	mkTxn("b", "2026-05-15", "Whole Foods","Groceries",   -8400)
+	mkTxn("c", "2026-04-22", "Trader Joes","Groceries",   -2200)
+	mkTxn("d", "2026-05-09", "Shell",      "Gas",         -4800)
+	// SB ringer
+	mkTxn("sb1", "2026-03-01", "Starting Balance", "", -50000)
+
+	probe := func(query string) []transactionDTO {
+		r := httptest.NewRequest(http.MethodGet, "/api/finance/transactions?"+query, nil)
+		w := httptest.NewRecorder()
+		h.Transactions(w, r)
+		if w.Code != 200 {
+			t.Fatalf("status %d  body=%s", w.Code, w.Body.String())
+		}
+		var got []transactionDTO
+		_ = json.Unmarshal(w.Body.Bytes(), &got)
+		return got
+	}
+
+	// No filters → all current-period rows except starting balance
+	all := probe("limit=50")
+	for _, r := range all {
+		if r.ID == "sb1" {
+			t.Errorf("starting-balance row leaked through: %+v", r)
+		}
+	}
+	if len(all) != 4 {
+		t.Errorf("default list len=%d, want 4", len(all))
+	}
+
+	// category=Groceries → only Groceries rows
+	groc := probe("category=Groceries")
+	if len(groc) != 3 {
+		t.Errorf("Groceries filter len=%d, want 3", len(groc))
+	}
+	for _, r := range groc {
+		if r.Category != "Groceries" {
+			t.Errorf("non-Groceries row: %+v", r)
+		}
+	}
+
+	// category=Groceries&month=2026-05 → only May Groceries
+	mayGroc := probe("category=Groceries&month=2026-05")
+	if len(mayGroc) != 2 {
+		t.Errorf("May Groceries len=%d, want 2", len(mayGroc))
+	}
+
+	// include_starting=1 brings the SB row back
+	withSB := probe("include_starting=1&limit=50")
+	if len(withSB) != 5 {
+		t.Errorf("include_starting len=%d, want 5", len(withSB))
+	}
+}
+
+func TestListTransactions_PayeeFiltersStartingBalanceWithEmptyCategory(t *testing.T) {
+	// Real-world hole: ~33% of starting-balance rows have NULL category on
+	// the Actual side, so the category-only filter let them through.
+	db := inMemFinanceDB(t)
+	h := NewHandlers(db)
+	if _, err := db.Exec(`INSERT INTO fin_accounts
+		(actual_id, name, type, balance_cents, on_budget, closed, updated_at)
+		VALUES ('a1','Chase','',0,1,0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO fin_transactions
+		(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
+		VALUES ('sb-empty', 'a1', '2026-03-01', 'Starting Balance', '', -50000, '', 0)`); err != nil {
+		t.Fatal(err)
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/finance/transactions", nil)
+	w := httptest.NewRecorder()
+	h.Transactions(w, r)
+	if strings.Contains(w.Body.String(), `"sb-empty"`) {
+		t.Errorf("SB with empty category leaked through: %s", w.Body.String())
+	}
+}
+
 func TestSummary_OverrideMovesSpendBetweenCategories(t *testing.T) {
 	db := inMemFinanceDB(t)
 	h := NewHandlers(db)

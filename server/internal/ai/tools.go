@@ -213,7 +213,8 @@ func (d *ToolDispatcher) financeSummary(ctx context.Context, raw json.RawMessage
 		        COALESCE(-SUM(CASE WHEN amount_cents < 0 THEN amount_cents END), 0)
 		   FROM fin_transactions t JOIN fin_accounts a ON a.actual_id = t.account_id
 		  WHERE t.date LIKE ? AND a.on_budget = 1
-		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')`, monthLike).
+		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')
+		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`, monthLike).
 		Scan(&o.IncomeCents, &o.SpentCents); err != nil {
 		return "", err
 	}
