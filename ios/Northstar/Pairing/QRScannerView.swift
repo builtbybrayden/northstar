@@ -30,8 +30,14 @@ struct QRScannerView: UIViewControllerRepresentable {
         }
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
+            // AVCaptureSession is a class (reference type) and thread-safe — copy
+            // the reference into the closure so we don't touch MainActor state
+            // from the background queue (Swift 6 strict concurrency).
+            let session = self.session
             if !session.isRunning {
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.session.startRunning() }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    session.startRunning()
+                }
             }
         }
         override func viewWillDisappear(_ animated: Bool) {
@@ -61,14 +67,19 @@ struct QRScannerView: UIViewControllerRepresentable {
             view.layer.addSublayer(preview)
         }
 
-        func metadataOutput(_ output: AVCaptureMetadataOutput,
-                            didOutput metadataObjects: [AVMetadataObject],
-                            from connection: AVCaptureConnection) {
-            guard !emitted else { return }
+        // Protocol method is nonisolated; we forced delivery on `.main` via
+        // setMetadataObjectsDelegate(self, queue: .main) so MainActor access is
+        // safe in practice — assumeIsolated reflects that to the type system.
+        nonisolated func metadataOutput(_ output: AVCaptureMetadataOutput,
+                                        didOutput metadataObjects: [AVMetadataObject],
+                                        from connection: AVCaptureConnection) {
             guard let first = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
                   let s = first.stringValue, !s.isEmpty else { return }
-            emitted = true
-            onCode(s)
+            MainActor.assumeIsolated {
+                guard !emitted else { return }
+                emitted = true
+                onCode(s)
+            }
         }
     }
 }

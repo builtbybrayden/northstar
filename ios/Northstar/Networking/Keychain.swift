@@ -10,7 +10,7 @@ struct Keychain {
 
     var bearerToken: String? {
         get { read() }
-        set {
+        nonmutating set {
             if let v = newValue { write(v) } else { delete() }
         }
     }
