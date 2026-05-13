@@ -444,10 +444,13 @@ struct APIClient {
     }
 
     /// Streams the assistant reply via SSE. Emits each parsed event via `onEvent`.
+    /// `onEvent` is `@Sendable` so the caller can hop to MainActor inside it
+    /// without the strict-concurrency checker flagging the closure as a
+    /// non-Sendable value crossing into our nonisolated body.
     func aiSendMessageStream(
         convID: String,
         text: String,
-        onEvent: @escaping (AIStreamEvent) -> Void
+        onEvent: @escaping @Sendable (AIStreamEvent) -> Void
     ) async throws {
         let e = convID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? convID
         var req = URLRequest(url: url(for: "/api/ai/conversations/\(e)/messages"))
@@ -477,7 +480,7 @@ struct APIClient {
     // ─── Live notification stream (SSE) ───────────────────────────────────
 
     /// One push event off /api/notifications/stream.
-    struct LiveNotification: Decodable {
+    struct LiveNotification: Decodable, Sendable {
         let type: String          // "notification" — heartbeats and "ready" use a different shape
         let id: String
         let category: String
@@ -490,7 +493,7 @@ struct APIClient {
     /// Long-lived SSE subscription. Yields once per fired notification.
     /// Returns when the server closes the stream or the task is cancelled.
     /// Caller is responsible for reconnect on failure (typically via `Task`).
-    func notificationsStream(onEvent: @escaping (LiveNotification) -> Void) async throws {
+    func notificationsStream(onEvent: @escaping @Sendable (LiveNotification) -> Void) async throws {
         var req = URLRequest(url: url(for: "/api/notifications/stream"))
         req.httpMethod = "GET"
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")

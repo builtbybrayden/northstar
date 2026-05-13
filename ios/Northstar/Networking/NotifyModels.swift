@@ -1,6 +1,6 @@
 import Foundation
 
-struct AppNotification: Decodable, Identifiable {
+struct AppNotification: Decodable, Identifiable, Sendable {
     let id: String
     let category: String
     let title: String
@@ -33,8 +33,11 @@ struct BudgetTarget: Decodable, Identifiable {
     var push_enabled: Bool
 }
 
-// Minimal type-erased Codable for arbitrary JSON payloads.
-struct AnyCodable: Decodable {
+// Minimal type-erased Codable for arbitrary JSON payloads. `value: Any`
+// can't be checked Sendable by the compiler, but the only writes happen
+// during decode and the value is never mutated afterward — safe to mark
+// @unchecked Sendable for cross-actor transport.
+struct AnyCodable: Decodable, @unchecked Sendable {
     let value: Any
     init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()

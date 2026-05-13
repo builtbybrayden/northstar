@@ -8,7 +8,9 @@ struct Conversation: Codable, Identifiable {
 }
 
 /// Decoded server-sent event from /api/ai/conversations/:id/messages.
-struct AIStreamEvent: Codable {
+/// Sendable so it can cross the SSE callback boundary into a @MainActor Task
+/// without the strict-concurrency checker complaining.
+struct AIStreamEvent: Codable, Sendable {
     let type: String          // text | tool_call | done | error
     let text: String?
     let tool_name: String?

@@ -1,5 +1,8 @@
 import SwiftUI
-import AVFoundation
+// AVFoundation hasn't been audited for Sendable yet; `@preconcurrency`
+// downgrades the resulting diagnostics to warnings so the project still
+// builds under SWIFT_STRICT_CONCURRENCY=complete.
+@preconcurrency import AVFoundation
 
 /// Thin SwiftUI wrapper around AVCaptureSession for QR scanning.
 /// Emits the first detected payload via the `onCode` closure, then stops.
@@ -30,10 +33,11 @@ struct QRScannerView: UIViewControllerRepresentable {
         }
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
-            // AVCaptureSession is a class (reference type) and thread-safe — copy
-            // the reference into the closure so we don't touch MainActor state
-            // from the background queue (Swift 6 strict concurrency).
-            let session = self.session
+            // AVCaptureSession is documented thread-safe but isn't marked
+            // Sendable. `nonisolated(unsafe)` tells the compiler we vouch for
+            // the cross-thread access; the DispatchQueue.global hop avoids
+            // blocking the main thread on startRunning().
+            nonisolated(unsafe) let session = self.session
             if !session.isRunning {
                 DispatchQueue.global(qos: .userInitiated).async {
                     session.startRunning()

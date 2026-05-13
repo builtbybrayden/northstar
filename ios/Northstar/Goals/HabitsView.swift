@@ -169,7 +169,9 @@ private struct HabitCard: View {
         }
         return LazyHGrid(rows: columns, spacing: Self.cellSpacing) {
             ForEach(0..<(Self.weeks * 7), id: \.self) { i in
-                let cell = cells[safe: i]
+                // cells is [HeatCell?], so the bounds-safe subscript gives a
+                // double-optional. Flatten to a single Optional<HeatCell>.
+                let cell: HeatCell? = (i >= 0 && i < cells.count) ? cells[i] : nil
                 Button {
                     if let date = cell?.date { onCellTap(date) }
                 } label: {
