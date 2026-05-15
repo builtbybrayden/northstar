@@ -111,6 +111,22 @@ struct APIClient {
     func financeBalanceHistory(days: Int = 90) async throws -> BalanceHistory {
         try await get(path: "/api/finance/balance-history?days=\(days)")
     }
+    /// flow ∈ {"spent","income","saved"} drills into the rows that
+    /// make up the corresponding donut. Reconciles exactly to the
+    /// summary headline number.
+    func financeTransactionsByFlow(flow: String,
+                                   month: String? = nil,
+                                   limit: Int = 200) async throws -> [Transaction] {
+        var qs = ["flow=\(flow)", "limit=\(limit)"]
+        if let m = month { qs.append("month=\(m)") }
+        return try await get(path: "/api/finance/transactions?" + qs.joined(separator: "&"))
+    }
+    func financeSettings() async throws -> FinanceSettings {
+        try await get(path: "/api/finance/settings")
+    }
+    func updateFinanceSettings(_ s: FinanceSettings) async throws -> FinanceSettings {
+        try await patch(path: "/api/finance/settings", body: s)
+    }
 
     /// Apply a user category override to a single transaction.
     /// Pass `nil` to clear the override and revert to the upstream value.

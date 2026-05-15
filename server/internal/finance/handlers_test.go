@@ -47,6 +47,12 @@ func inMemFinanceDB(t *testing.T) *sql.DB {
 		   push_enabled INTEGER NOT NULL DEFAULT 1,
 		   updated_at INTEGER NOT NULL,
 		   category_group TEXT)`,
+		`CREATE TABLE fin_settings (
+		   id INTEGER PRIMARY KEY CHECK (id = 1),
+		   savings_target_pct INTEGER NOT NULL DEFAULT 25,
+		   updated_at INTEGER NOT NULL)`,
+		`INSERT INTO fin_settings (id, savings_target_pct, updated_at)
+		   VALUES (1, 25, 0)`,
 	}
 	for _, s := range stmts {
 		if _, err := d.Exec(s); err != nil {

@@ -267,6 +267,12 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 	// Optional filters used by the iOS category drilldown view.
 	categoryFilter := r.URL.Query().Get("category")
 	monthFilter := r.URL.Query().Get("month") // YYYY-MM
+	// `flow` selects one of the three donut-tap views:
+	//   spent  → on-budget outflows, transfers/parents/SB excluded
+	//   income → on-budget inflows,  transfers/parents/SB excluded
+	//   saved  → inflows into savings destination accounts that are
+	//            user-initiated transfers (transfer_id IS NOT NULL)
+	flowFilter := r.URL.Query().Get("flow")
 
 	// Starting Balances are Actual's one-time onboarding rows used to align
 	// the account with the real-world balance. They aren't real purchases and
@@ -294,11 +300,60 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 		clauses = append(clauses, `t.date LIKE ?`)
 		args = append(args, monthFilter+"-%")
 	}
+
+	// flow= filters mirror the donut math one-to-one so the drilldown
+	// list always reconciles to the headline number.
+	var savingsDestIDs []string
+	switch flowFilter {
+	case "spent":
+		clauses = append(clauses,
+			`a.on_budget = 1`,
+			`t.amount_cents < 0`,
+			`t.transfer_id IS NULL`,
+			`t.is_parent = 0`,
+			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Transfer'`,
+			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'`,
+			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`)
+	case "income":
+		clauses = append(clauses,
+			`a.on_budget = 1`,
+			`t.amount_cents > 0`,
+			`t.transfer_id IS NULL`,
+			`t.is_parent = 0`,
+			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Transfer'`,
+			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'`,
+			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`)
+	case "saved":
+		// Resolve savings destination accounts via the same heuristic
+		// that powers computeSavedCents, then constrain to inflows that
+		// are real transfers (transfer_id IS NOT NULL).
+		ids, err := savingsDestinationIDs(r.Context(), h.DB)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		if len(ids) == 0 {
+			writeJSON(w, http.StatusOK, []transactionDTO{})
+			return
+		}
+		savingsDestIDs = ids
+		placeholders := stringsRepeatJoin("?", ",", len(ids))
+		clauses = append(clauses,
+			`t.amount_cents > 0`,
+			`t.transfer_id IS NOT NULL`,
+			`t.is_parent = 0`,
+			`t.account_id IN (`+placeholders+`)`)
+		for _, id := range ids {
+			args = append(args, id)
+		}
+	}
+
 	where := ""
 	if len(clauses) > 0 {
 		where = ` WHERE ` + joinAnd(clauses)
 	}
 	args = append(args, limit)
+	_ = savingsDestIDs // documented above; the IDs are spliced into args
 
 	rows, err := h.DB.QueryContext(r.Context(),
 		`SELECT t.actual_id, t.account_id, COALESCE(a.name,''), t.date,
@@ -533,6 +588,41 @@ func classifyInvestmentAccount(name string) string {
 	return "other"
 }
 
+// savingsDestinationIDs returns the actual_ids of every open account
+// flagged by isSavingsDestination. Used by /transactions?flow=saved
+// and the saved-cents aggregator. Empty slice if none match.
+func savingsDestinationIDs(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT actual_id, name FROM fin_accounts WHERE closed = 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		if isSavingsDestination(name) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, rows.Err()
+}
+
+// stringsRepeatJoin returns e.g. "?,?,?,?" for ("?", ",", 4). Saves us
+// pulling in strings.Repeat + strings.TrimSuffix for a one-liner.
+func stringsRepeatJoin(token, sep string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	if n == 1 {
+		return token
+	}
+	return strings.Repeat(token+sep, n-1) + token
+}
+
 // isSavingsDestination returns true when an account looks like a place
 // money goes to be saved, invested, or set aside for retirement. Used by
 // the Finance summary to compute saved_cents as the month's contributions
@@ -641,6 +731,11 @@ type summaryResponse struct {
 	SpentCents          int64             `json:"spent_cents"`
 	BudgetedCents       int64             `json:"budgeted_cents"`
 	SavedCents          int64             `json:"saved_cents"`
+	// SavingsTargetPct is the user-configured savings target as a
+	// percentage of income. Default 25. iOS uses it to compute the
+	// saved donut denominator: target_cents = income × pct / 100.
+	SavingsTargetPct    int               `json:"savings_target_pct"`
+	SavingsTargetCents  int64             `json:"savings_target_cents"`
 	Categories          []categorySummary `json:"categories"`
 }
 
@@ -736,6 +831,14 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.SavedCents = saved
 
+	settings, err := readFinanceSettings(r.Context(), h.DB)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	resp.SavingsTargetPct = settings.SavingsTargetPct
+	resp.SavingsTargetCents = (resp.IncomeCents * int64(settings.SavingsTargetPct)) / 100
+
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -774,21 +877,23 @@ func computeSavedCents(ctx context.Context, db *sql.DB, monthLike string) (int64
 		args = append(args, id)
 	}
 	var saved int64
-	// NB: we intentionally DO NOT filter out transfer_id IS NOT NULL here.
-	// A transfer from checking → savings is exactly the kind of "saving"
-	// the user wants counted. Split parents are filtered because their
-	// children sum to the same amount and would double-count.
+	// "Saved this month" = the user-initiated transfers INTO savings
+	// destinations. Requires transfer_id IS NOT NULL so balance imports,
+	// starting balances, market gains, and external direct deposits
+	// don't count — only money the user deliberately moved from one of
+	// their accounts to a savings destination. This matches the user's
+	// mental model ("transfers into Robinhood / 401K / Amex+Chase
+	// savings this month"); paycheck→401K direct deposits land outside
+	// this definition by design, since the employer isn't an Actual
+	// account and we can't distinguish them from balance updates.
 	if err := db.QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(t.amount_cents), 0)
 		   FROM fin_transactions t
 		  WHERE t.date LIKE ?
 		    AND t.amount_cents > 0
 		    AND t.account_id IN (`+placeholders+`)
-		    AND t.is_parent = 0
-		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Starting Balances'
-		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'
-		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'
-		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`,
+		    AND t.transfer_id IS NOT NULL
+		    AND t.is_parent = 0`,
 		args...).Scan(&saved); err != nil {
 		return 0, err
 	}

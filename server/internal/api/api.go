@@ -84,6 +84,8 @@ func (s *Server) Router() http.Handler {
 			r.Get("/api/finance/forecast", fin.ForecastEndpoint)
 			r.Get("/api/finance/investments", fin.Investments)
 			r.Get("/api/finance/balance-history", fin.BalanceHistory)
+			r.Get("/api/finance/settings", fin.GetFinanceSettings)
+			r.Patch("/api/finance/settings", fin.UpdateFinanceSettings)
 			r.Get("/api/finance/budget-targets", fin.ListBudgetTargets)
 			r.Patch("/api/finance/budget-targets/{category}", fin.UpdateBudgetTarget)
 		}

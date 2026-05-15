@@ -45,7 +45,16 @@ struct FinanceSummary: Decodable {
     let spent_cents: Int64
     let budgeted_cents: Int64
     let saved_cents: Int64
+    /// User-set savings target as % of income. Default 25.
+    let savings_target_pct: Int?
+    /// Resolved target in cents (income × pct / 100); the saved
+    /// donut uses this as its denominator.
+    let savings_target_cents: Int64?
     let categories: [CategorySummary]
+}
+
+struct FinanceSettings: Codable {
+    var savings_target_pct: Int
 }
 
 // ─── Forecast ────────────────────────────────────────────────────────────

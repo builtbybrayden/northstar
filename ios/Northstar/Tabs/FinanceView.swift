@@ -11,6 +11,7 @@ struct FinanceView: View {
     @State private var refreshing = false
     @State private var editingTarget: BudgetTarget?
     @State private var detailTxn: Transaction?
+    @State private var drilldown: FinanceFlow?
 
     private let monthFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -82,6 +83,13 @@ struct FinanceView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .sheet(item: $drilldown) { f in
+            if let s = summary {
+                FlowDrilldownSheet(flow: f, summary: s) {
+                    Task { await load() }
+                }
+            }
+        }
     }
 
     // ─── Subviews ────────────────────────────────────────────────────────
@@ -123,20 +131,35 @@ struct FinanceView: View {
         let spentDenomLabel = s.budgeted_cents > 0
             ? s.budgeted_cents.asUSD(decimals: 0)
             : "\(s.income_cents.asUSD(decimals: 0)) inc."
+        // Saved denominator = the user's monthly savings target
+        // (income × savings_target_pct / 100). Default 25%.
+        let savedTarget = s.savings_target_cents ?? Int64(Double(s.income_cents) * 0.25)
+        let savedTargetLabel = savedTarget > 0
+            ? savedTarget.asUSD(decimals: 0) + " goal"
+            : s.income_cents.asUSD(decimals: 0)
         return HStack(spacing: 10) {
-            ring(label: "Spent",
-                 value: s.spent_cents.asUSD(decimals: 0),
-                 of: spentDenomLabel,
-                 pct: percent(s.spent_cents, of: spentDenom),
-                 color: Theme.finance)
-            ring(label: "Saved",
-                 value: s.saved_cents.asUSD(decimals: 0),
-                 of: s.income_cents.asUSD(decimals: 0),
-                 pct: percent(s.saved_cents, of: s.income_cents),
-                 color: Theme.goals)
-            ring(label: "Income",
-                 value: s.income_cents.asUSD(decimals: 0),
-                 of: nil, pct: 100, color: Theme.healthMid)
+            Button { drilldown = .spent } label: {
+                ring(label: "Spent",
+                     value: s.spent_cents.asUSD(decimals: 0),
+                     of: spentDenomLabel,
+                     pct: percent(s.spent_cents, of: spentDenom),
+                     color: Theme.finance)
+            }
+            .buttonStyle(.plain)
+            Button { drilldown = .saved } label: {
+                ring(label: "Saved",
+                     value: s.saved_cents.asUSD(decimals: 0),
+                     of: savedTargetLabel,
+                     pct: percent(s.saved_cents, of: savedTarget),
+                     color: Theme.goals)
+            }
+            .buttonStyle(.plain)
+            Button { drilldown = .income } label: {
+                ring(label: "Income",
+                     value: s.income_cents.asUSD(decimals: 0),
+                     of: nil, pct: 100, color: Theme.healthMid)
+            }
+            .buttonStyle(.plain)
         }
     }
 

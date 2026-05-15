@@ -53,25 +53,51 @@ func TestComputeSavedCents(t *testing.T) {
 		('rh', 'Robinhood', '', 0, 0, 0, 0),
 		('ch', 'Chase Checking', '', 0, 1, 0, 0),
 		('old', 'Old Amex Savings', '', 0, 1, 1, 0)`)
+	// t1+t2 = user-initiated transfers from checking → Robinhood (peers
+	// on Chase have matching transfer_id rows we don't bother seeding —
+	// the saved-side query only needs the destination leg). t3 is a
+	// balance-import row (no transfer_id, no peer) and must be excluded.
+	// t4 is on checking (not a destination). t5 is closed. t6 is April.
 	mustExecSaved(t, db, `INSERT INTO fin_transactions
-		(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
+		(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at, transfer_id, is_parent)
 		VALUES
-		('t1', 'rh', '2026-05-03', 'ACH Transfer', '', 50000, '', 0),
-		('t2', 'rh', '2026-05-15', 'Buy VOO',      '', 25000, '', 0),
-		('t3', 'rh', '2026-05-01', 'Starting Balance', 'Starting Balances', 999999, '', 0),
-		('t4', 'ch', '2026-05-04', 'Paycheck',    'Salary', 500000, '', 0),
-		('t5', 'old','2026-05-10', 'Old deposit',  '', 20000, '', 0),
-		('t6', 'rh', '2026-04-20', 'Old deposit',  '', 99999, '', 0)`)
+		('t1', 'rh', '2026-05-03', 'Transfer from Chase', '', 50000, '', 0, 'peer-1', 0),
+		('t2', 'rh', '2026-05-15', 'Transfer from Chase', '', 25000, '', 0, 'peer-2', 0),
+		('t3', 'rh', '2026-05-01', 'Robinhood',           '', 999999, '', 0, NULL, 0),
+		('t4', 'ch', '2026-05-04', 'Paycheck', 'Salary',      500000, '', 0, NULL, 0),
+		('t5', 'old','2026-05-10', 'Transfer from Old',   '', 20000, '', 0, 'peer-5', 0),
+		('t6', 'rh', '2026-04-20', 'Transfer from Chase', '', 99999, '', 0, 'peer-6', 0)`)
 
 	saved, err := computeSavedCents(context.Background(), db, "2026-05-%")
 	if err != nil {
 		t.Fatalf("computeSavedCents: %v", err)
 	}
 	// Want: t1 (50000) + t2 (25000) = 75000. Excluded:
-	// t3 starting balance, t4 checking (not a destination),
-	// t5 closed account, t6 April (wrong month).
+	// t3 no transfer_id (balance import), t4 not a destination,
+	// t5 closed account, t6 April.
 	if want := int64(75000); saved != want {
 		t.Errorf("saved = %d, want %d", saved, want)
+	}
+}
+
+func TestComputeSavedCents_BalanceImportExcluded(t *testing.T) {
+	// Regression for user report (2026-05-15): saved donut was showing
+	// the *total balance* in savings because off-budget accounts get
+	// imported with a single big +deposit and we were treating it as
+	// inflow. Transfer-only filter must drop that row.
+	db := inMemFinanceDB(t)
+	mustExecSaved(t, db, `INSERT INTO fin_accounts
+		(actual_id, name, type, balance_cents, on_budget, closed, updated_at)
+		VALUES ('rh', 'Robinhood', '', 50000000, 0, 0, 0)`)
+	mustExecSaved(t, db, `INSERT INTO fin_transactions
+		(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at, transfer_id, is_parent)
+		VALUES ('bal', 'rh', '2026-05-01', 'Robinhood Balance', '', 50000000, '', 0, NULL, 0)`)
+	saved, err := computeSavedCents(context.Background(), db, "2026-05-%")
+	if err != nil {
+		t.Fatalf("computeSavedCents: %v", err)
+	}
+	if saved != 0 {
+		t.Errorf("balance import should not count as saved; got %d", saved)
 	}
 }
 
@@ -81,8 +107,8 @@ func TestComputeSavedCents_NoDestinationAccounts(t *testing.T) {
 		(actual_id, name, type, balance_cents, on_budget, closed, updated_at)
 		VALUES ('ch', 'Chase Checking', '', 0, 1, 0, 0)`)
 	mustExecSaved(t, db, `INSERT INTO fin_transactions
-		(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
-		VALUES ('t1', 'ch', '2026-05-03', 'Paycheck', 'Salary', 500000, '', 0)`)
+		(actual_id, account_id, date, payee, category, amount_cents, notes, imported_at, transfer_id, is_parent)
+		VALUES ('t1', 'ch', '2026-05-03', 'Paycheck', 'Salary', 500000, '', 0, NULL, 0)`)
 
 	saved, err := computeSavedCents(context.Background(), db, "2026-05-%")
 	if err != nil {

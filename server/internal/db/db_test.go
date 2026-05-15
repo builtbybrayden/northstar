@@ -69,6 +69,8 @@ func TestMigrate_AppliesAll(t *testing.T) {
 		// Phase 7.5 — transfer linkage + split flag
 		{"fin_transactions", "transfer_id"},
 		{"fin_transactions", "is_parent"},
+		// Phase 7.5 — finance settings (savings target)
+		{"fin_settings", "savings_target_pct"},
 	}
 	for _, c := range cases {
 		t.Run(c.table+"."+c.column, func(t *testing.T) {
