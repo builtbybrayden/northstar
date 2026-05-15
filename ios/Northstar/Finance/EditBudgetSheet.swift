@@ -12,10 +12,21 @@ struct EditBudgetSheet: View {
     @State private var dollarsString: String
     @State private var thresholdSelections: Set<Int>
     @State private var pushEnabled: Bool
+    @State private var selectedGroup: String
     @State private var saving = false
     @State private var saveError: String?
 
     private static let availableThresholds = [50, 75, 90, 100]
+
+    /// Must match `finance.AllGroups` on the server. Order is intentional —
+    /// fixed needs first, discretionary next, income, catch-all last.
+    private static let availableGroups = [
+        "Living Expenses",
+        "Transportation",
+        "Dining & Entertainment",
+        "Savings & Income",
+        "Miscellaneous",
+    ]
 
     init(target: BudgetTarget, onSaved: @escaping () -> Void) {
         self.target = target
@@ -23,6 +34,9 @@ struct EditBudgetSheet: View {
         _dollarsString = State(initialValue: String(target.monthly_cents / 100))
         _thresholdSelections = State(initialValue: Set(target.threshold_pcts))
         _pushEnabled = State(initialValue: target.push_enabled)
+        let initialGroup = target.category_group ?? "Miscellaneous"
+        _selectedGroup = State(initialValue:
+            Self.availableGroups.contains(initialGroup) ? initialGroup : "Miscellaneous")
     }
 
     var body: some View {
@@ -43,6 +57,7 @@ struct EditBudgetSheet: View {
 
             monthlyCapField
             thresholdsField
+            groupField
             behaviorCard
 
             if let saveError {
@@ -124,6 +139,33 @@ struct EditBudgetSheet: View {
         }
     }
 
+    private var groupField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("GROUP")
+                .font(.caption2).bold().tracking(1).foregroundStyle(Theme.text3)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Self.availableGroups, id: \.self) { g in
+                        Button(action: { selectedGroup = g }) {
+                            Text(g)
+                                .font(.system(size: 13, weight: .semibold))
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .background(selectedGroup == g
+                                            ? Theme.ai.opacity(0.12) : Color(hex: 0x0f0f0f))
+                                .foregroundStyle(selectedGroup == g
+                                                 ? Theme.ai : Theme.text2)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(selectedGroup == g ? Theme.ai : Color.clear,
+                                                lineWidth: 1))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var behaviorCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("BEHAVIOR")
@@ -168,7 +210,8 @@ struct EditBudgetSheet: View {
             let update = APIClient.BudgetTargetUpdate(
                 monthly_cents: dollars * 100,
                 threshold_pcts: thresholdSelections.sorted(),
-                push_enabled: pushEnabled
+                push_enabled: pushEnabled,
+                category_group: selectedGroup
             )
             try await api.updateBudgetTarget(category: target.category, update)
             onSaved()
