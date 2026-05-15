@@ -81,11 +81,12 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 			 VALUES (?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(actual_id) DO UPDATE SET
 			   name = excluded.name,
+			   type = excluded.type,
 			   balance_cents = excluded.balance_cents,
 			   on_budget = excluded.on_budget,
 			   closed = excluded.closed,
 			   updated_at = excluded.updated_at`,
-			a.ID, a.Name, "", a.Balance, boolToInt(!a.OffBudget), boolToInt(a.Closed), now)
+			a.ID, a.Name, a.Type, a.Balance, boolToInt(!a.OffBudget), boolToInt(a.Closed), now)
 		if err != nil {
 			return err
 		}

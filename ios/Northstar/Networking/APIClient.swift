@@ -127,24 +127,59 @@ struct APIClient {
     func updateFinanceSettings(_ s: FinanceSettings) async throws -> FinanceSettings {
         try await patch(path: "/api/finance/settings", body: s)
     }
-    /// Toggle an account's "savings destination" override. Pass nil to
-    /// clear the override and revert to the server-side name heuristic.
-    func setAccountSavingsDestination(id: String, value: Bool?) async throws {
+    /// Toggle account flags. Pass an explicit bool to override, or nil
+    /// to clear the override (revert to the server-side default).
+    /// Either field can be omitted to leave it unchanged.
+    func updateAccountFlags(id: String,
+                            savingsDestination: AccountFlagChange = .unchanged,
+                            includeInIncome: AccountFlagChange = .unchanged) async throws {
         let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         try await patchVoid(path: "/api/finance/accounts/\(e)",
-                            body: AccountUpdate(value: value))
+                            body: AccountFlagUpdate(savings: savingsDestination, income: includeInIncome))
     }
-    struct AccountUpdate: Encodable {
-        let value: Bool?
+    enum AccountFlagChange {
+        case unchanged
+        case clear     // server-side null, revert to heuristic
+        case set(Bool) // explicit override
+    }
+    struct AccountFlagUpdate: Encodable {
+        let savings: AccountFlagChange
+        let income: AccountFlagChange
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            switch savings {
+            case .unchanged: break
+            case .clear: try c.encodeNil(forKey: .is_savings_destination)
+            case .set(let v): try c.encode(v, forKey: .is_savings_destination)
+            }
+            switch income {
+            case .unchanged: break
+            case .clear: try c.encodeNil(forKey: .include_in_income)
+            case .set(let v): try c.encode(v, forKey: .include_in_income)
+            }
+        }
+        enum CodingKeys: String, CodingKey {
+            case is_savings_destination, include_in_income
+        }
+    }
+    /// PATCH /api/finance/transactions/:id { "flow_override": ... }
+    /// value: "income" | "spent" | "saved" | "exclude" | nil(clear)
+    func setTransactionFlowOverride(id: String, value: String?) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        try await patchVoid(path: "/api/finance/transactions/\(e)",
+                            body: FlowOverrideUpdate(value: value))
+    }
+    struct FlowOverrideUpdate: Encodable {
+        let value: String?
         func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
             if let value {
-                try c.encode(value, forKey: .is_savings_destination)
+                try c.encode(value, forKey: .flow_override)
             } else {
-                try c.encodeNil(forKey: .is_savings_destination)
+                try c.encodeNil(forKey: .flow_override)
             }
         }
-        enum CodingKeys: String, CodingKey { case is_savings_destination }
+        enum CodingKeys: String, CodingKey { case flow_override }
     }
 
     /// Apply a user category override to a single transaction.

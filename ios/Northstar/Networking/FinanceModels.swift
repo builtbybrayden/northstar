@@ -3,14 +3,16 @@ import Foundation
 struct Account: Decodable, Identifiable {
     let id: String
     let name: String
+    let type: String?
     let balance_cents: Int64
     let on_budget: Bool
     let closed: Bool
-    /// Effective resolved value — override when user has toggled,
-    /// else the server-side name heuristic.
+    /// Effective resolved values (override when set, else heuristic).
     let is_savings_destination: Bool?
-    /// nil = no override (heuristic governs), true/false = explicit.
+    let include_in_income: Bool?
+    /// Raw override columns. nil = no override (heuristic governs).
     let savings_destination_override: Bool?
+    let include_in_income_override: Bool?
 }
 
 struct Transaction: Decodable, Identifiable {
@@ -26,6 +28,9 @@ struct Transaction: Decodable, Identifiable {
     let category_original: String?
     let amount_cents: Int64
     let notes: String
+    /// User-set flow override: "income" | "spent" | "saved" | "exclude".
+    /// nil = use classifier default.
+    let flow_override: String?
 }
 
 struct CategorySummary: Decodable, Identifiable {

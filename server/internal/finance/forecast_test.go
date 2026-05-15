@@ -25,14 +25,16 @@ func forecastDB(t *testing.T) *sql.DB {
 		   on_budget INTEGER NOT NULL DEFAULT 1,
 		   closed INTEGER NOT NULL DEFAULT 0,
 		   updated_at INTEGER NOT NULL,
-		   is_savings_destination INTEGER)`,
+		   is_savings_destination INTEGER,
+		   include_in_income INTEGER)`,
 		`CREATE TABLE fin_transactions (
 		   actual_id TEXT PRIMARY KEY, account_id TEXT, date TEXT,
 		   payee TEXT, category TEXT, amount_cents INTEGER NOT NULL,
 		   notes TEXT, imported_at INTEGER NOT NULL,
 		   category_user TEXT,
 		   transfer_id TEXT,
-		   is_parent INTEGER NOT NULL DEFAULT 0)`,
+		   is_parent INTEGER NOT NULL DEFAULT 0,
+		   flow_override TEXT)`,
 	}
 	for _, s := range stmts {
 		if _, err := d.Exec(s); err != nil {

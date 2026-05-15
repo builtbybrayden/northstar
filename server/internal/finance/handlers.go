@@ -211,21 +211,26 @@ func joinAnd(parts []string) string {
 type accountDTO struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
+	Type         string `json:"type"` // Actual's account.type (may be empty)
 	BalanceCents int64  `json:"balance_cents"`
 	OnBudget     bool   `json:"on_budget"`
 	Closed       bool   `json:"closed"`
 	// IsSavingsDestination is the effective resolved value (override
-	// when set, name heuristic otherwise) so the iOS toggle UI shows
-	// the right initial state without having to re-run the heuristic.
+	// when set, otherwise the heuristic). iOS toggle UI shows this.
 	IsSavingsDestination bool `json:"is_savings_destination"`
 	// SavingsDestinationOverride is the raw column value: nil = no
 	// override (heuristic governs), 0/1 = explicit user toggle.
 	SavingsDestinationOverride *bool `json:"savings_destination_override,omitempty"`
+	// IncludeInIncome — same shape as the savings flag.
+	IncludeInIncome         bool  `json:"include_in_income"`
+	IncludeInIncomeOverride *bool `json:"include_in_income_override,omitempty"`
 }
 
 func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(r.Context(),
-		`SELECT actual_id, name, balance_cents, on_budget, closed, is_savings_destination
+		`SELECT actual_id, name, COALESCE(type,''),
+		        balance_cents, on_budget, closed,
+		        is_savings_destination, include_in_income
 		   FROM fin_accounts WHERE closed = 0
 		   ORDER BY on_budget DESC, name ASC`)
 	if err != nil {
@@ -238,19 +243,28 @@ func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var a accountDTO
 		var onBudget, closed int
-		var override sql.NullInt64
-		if err := rows.Scan(&a.ID, &a.Name, &a.BalanceCents, &onBudget, &closed, &override); err != nil {
+		var savingsOv, incomeOv sql.NullInt64
+		if err := rows.Scan(&a.ID, &a.Name, &a.Type,
+			&a.BalanceCents, &onBudget, &closed,
+			&savingsOv, &incomeOv); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
 		a.OnBudget = onBudget == 1
 		a.Closed = closed == 1
-		if override.Valid {
-			v := override.Int64 == 1
+		if savingsOv.Valid {
+			v := savingsOv.Int64 == 1
 			a.SavingsDestinationOverride = &v
 			a.IsSavingsDestination = v
 		} else {
-			a.IsSavingsDestination = isSavingsDestination(a.Name)
+			a.IsSavingsDestination = DefaultIsSavingsDestination(a.Type, a.Name)
+		}
+		if incomeOv.Valid {
+			v := incomeOv.Int64 == 1
+			a.IncludeInIncomeOverride = &v
+			a.IncludeInIncome = v
+		} else {
+			a.IncludeInIncome = DefaultIncludeInIncome(a.Type, a.Name)
 		}
 		out = append(out, a)
 	}
@@ -259,10 +273,11 @@ func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 
 // PATCH /api/finance/accounts/{id}
 //
-// Currently the only mutable field is is_savings_destination. Pass null
-// to clear the override and revert to the name heuristic.
+// Two mutable flags, both nullable (null = clear override, revert to
+// heuristic). At least one must be present.
 type accountUpdate struct {
 	IsSavingsDestination json.RawMessage `json:"is_savings_destination"`
+	IncludeInIncome      json.RawMessage `json:"include_in_income"`
 }
 
 func (h *Handlers) UpdateAccount(w http.ResponseWriter, r *http.Request) {
@@ -276,36 +291,61 @@ func (h *Handlers) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		writeErrMsg(w, http.StatusBadRequest, "bad json")
 		return
 	}
-	if len(u.IsSavingsDestination) == 0 {
+	if len(u.IsSavingsDestination) == 0 && len(u.IncludeInIncome) == 0 {
 		writeErrMsg(w, http.StatusBadRequest, "no fields to update")
 		return
 	}
-	if string(u.IsSavingsDestination) == "null" {
-		_, err := h.DB.ExecContext(r.Context(),
-			`UPDATE fin_accounts SET is_savings_destination = NULL WHERE actual_id = ?`, id)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, err)
-			return
-		}
-	} else {
-		var b bool
-		if err := json.Unmarshal(u.IsSavingsDestination, &b); err != nil {
-			writeErrMsg(w, http.StatusBadRequest, "is_savings_destination must be bool or null")
-			return
-		}
-		val := 0
-		if b {
-			val = 1
-		}
-		_, err := h.DB.ExecContext(r.Context(),
-			`UPDATE fin_accounts SET is_savings_destination = ? WHERE actual_id = ?`, val, id)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, err)
-			return
-		}
+
+	if err := applyAccountFlag(r.Context(), h.DB, id,
+		"is_savings_destination", u.IsSavingsDestination); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := applyAccountFlag(r.Context(), h.DB, id,
+		"include_in_income", u.IncludeInIncome); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
+
+// applyAccountFlag executes the UPDATE for one nullable bool flag,
+// keyed on a column whitelist so we never splice user input into SQL.
+func applyAccountFlag(ctx context.Context, db *sql.DB, id, col string, raw json.RawMessage) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	switch col {
+	case "is_savings_destination", "include_in_income":
+	default:
+		return errBadFlagColumn
+	}
+	if string(raw) == "null" {
+		_, err := db.ExecContext(ctx,
+			`UPDATE fin_accounts SET `+col+` = NULL WHERE actual_id = ?`, id)
+		return err
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err != nil {
+		return errBadFlagValue
+	}
+	v := 0
+	if b {
+		v = 1
+	}
+	_, err := db.ExecContext(ctx,
+		`UPDATE fin_accounts SET `+col+` = ? WHERE actual_id = ?`, v, id)
+	return err
+}
+
+var (
+	errBadFlagColumn = errString("unknown flag column")
+	errBadFlagValue  = errString("flag must be bool or null")
+)
+
+type errString string
+
+func (e errString) Error() string { return string(e) }
 
 // ─── /api/finance/transactions ────────────────────────────────────────────
 
@@ -319,6 +359,11 @@ type transactionDTO struct {
 	CategoryOriginal string `json:"category_original,omitempty"`
 	AmountCents      int64  `json:"amount_cents"`
 	Notes            string `json:"notes"`
+	// Effective flow assignment as computed by the classifier. Lets the
+	// iOS picker show what bucket the row is currently in without
+	// recomputing client-side.
+	Flow         string  `json:"flow,omitempty"`
+	FlowOverride *string `json:"flow_override,omitempty"`
 }
 
 func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
@@ -366,61 +411,50 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 		args = append(args, monthFilter+"-%")
 	}
 
-	// flow= filters mirror the donut math one-to-one so the drilldown
-	// list always reconciles to the headline number.
-	//
-	// Both spent + income exclude transfers, split parents, starting-
-	// balance variants, and Payment-category rows (defense against
-	// CC payments that arrive without a transfer_id link — without this,
-	// the destination leg of a manual CC payment shows up as income).
-	var savingsDestIDs []string
-	switch flowFilter {
-	case "spent":
-		clauses = append(clauses,
-			`a.on_budget = 1`,
-			`t.amount_cents < 0`,
-			`t.transfer_id IS NULL`,
-			`t.is_parent = 0`,
-			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Credit Card Payment','Payment')`,
-			`LOWER(COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,''))) NOT LIKE '%credit card payment%'`,
-			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'`,
-			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`)
-	case "income":
-		// Deliberately NOT filtering on a.on_budget — Amex Checking
-		// and similar off-budget cash accounts still receive paychecks.
-		// transfer_id + Payment-category filters handle the dedup.
-		clauses = append(clauses,
-			`t.amount_cents > 0`,
-			`t.transfer_id IS NULL`,
-			`t.is_parent = 0`,
-			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Credit Card Payment','Payment','Starting Balances')`,
-			`LOWER(COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,''))) NOT LIKE '%credit card payment%'`,
-			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`,
-			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'`,
-			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`)
-	case "saved":
-		// Resolve savings destination accounts via the same heuristic
-		// that powers computeSavedCents, then constrain to inflows that
-		// are real transfers (transfer_id IS NOT NULL).
-		ids, err := savingsDestinationIDs(r.Context(), h.DB)
+	// When `flow` is set we route through the Go classifier so the list
+	// reconciles 1:1 with the summary donut. The other filters (category,
+	// month, include_starting) still go through the legacy SQL path
+	// because they're used by the per-category drilldown which is a
+	// different surface.
+	if flowFilter != "" {
+		monthLike := monthFilter + "-%"
+		if monthFilter == "" {
+			monthLike = time.Now().UTC().Format("2006-01") + "-%"
+		}
+		classified, err := loadClassifiedMonth(r.Context(), h.DB, monthLike)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if len(ids) == 0 {
-			writeJSON(w, http.StatusOK, []transactionDTO{})
-			return
+		want := Flow(flowFilter)
+		out := make([]transactionDTO, 0, 32)
+		for _, c := range classified {
+			if c.Flow != want {
+				continue
+			}
+			dto := transactionDTO{
+				ID:               c.ID,
+				AccountID:        c.AccountID,
+				AccountName:      c.AccountName,
+				Date:             c.Date,
+				Payee:            c.Payee,
+				Category:         c.Category,
+				CategoryOriginal: c.CategoryOriginal,
+				AmountCents:      c.AmountCents,
+				Notes:            c.Notes,
+				Flow:             string(c.Flow),
+			}
+			if c.FlowOverrideRaw != "" {
+				v := c.FlowOverrideRaw
+				dto.FlowOverride = &v
+			}
+			out = append(out, dto)
+			if len(out) >= limit {
+				break
+			}
 		}
-		savingsDestIDs = ids
-		placeholders := stringsRepeatJoin("?", ",", len(ids))
-		clauses = append(clauses,
-			`t.amount_cents > 0`,
-			`t.transfer_id IS NOT NULL`,
-			`t.is_parent = 0`,
-			`t.account_id IN (`+placeholders+`)`)
-		for _, id := range ids {
-			args = append(args, id)
-		}
+		writeJSON(w, http.StatusOK, out)
+		return
 	}
 
 	where := ""
@@ -428,7 +462,6 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 		where = ` WHERE ` + joinAnd(clauses)
 	}
 	args = append(args, limit)
-	_ = savingsDestIDs // documented above; the IDs are spliced into args
 
 	rows, err := h.DB.QueryContext(r.Context(),
 		`SELECT t.actual_id, t.account_id, COALESCE(a.name,''), t.date,
@@ -436,7 +469,8 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 		        COALESCE(NULLIF(t.category_user, ''), COALESCE(t.category,'')) AS effective,
 		        CASE WHEN NULLIF(t.category_user,'') IS NOT NULL
 		             THEN COALESCE(t.category,'') ELSE '' END AS original,
-		        t.amount_cents, COALESCE(t.notes,'')
+		        t.amount_cents, COALESCE(t.notes,''),
+		        COALESCE(t.flow_override,'')
 		   FROM fin_transactions t
 		   LEFT JOIN fin_accounts a ON a.actual_id = t.account_id`+where+`
 		   ORDER BY t.date DESC, t.imported_at DESC
@@ -450,11 +484,16 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 	out := []transactionDTO{}
 	for rows.Next() {
 		var t transactionDTO
+		var flowOv string
 		if err := rows.Scan(&t.ID, &t.AccountID, &t.AccountName, &t.Date,
 			&t.Payee, &t.Category, &t.CategoryOriginal,
-			&t.AmountCents, &t.Notes); err != nil {
+			&t.AmountCents, &t.Notes, &flowOv); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
+		}
+		if flowOv != "" {
+			v := flowOv
+			t.FlowOverride = &v
 		}
 		out = append(out, t)
 	}
@@ -470,7 +509,8 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 //   - field set to a string      (apply override)
 // We don't expose payee/amount/account edits — those belong in Actual.
 type transactionUpdate struct {
-	Category json.RawMessage `json:"category"`
+	Category     json.RawMessage `json:"category"`
+	FlowOverride json.RawMessage `json:"flow_override"`
 }
 
 func (h *Handlers) UpdateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -498,6 +538,19 @@ func (h *Handlers) UpdateTransaction(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeErr(w, http.StatusInternalServerError, err)
 		return
+	}
+
+	// Apply flow_override first, then category. They're independent —
+	// either or both can be present in a single PATCH.
+	if len(u.FlowOverride) > 0 {
+		if err := applyFlowOverride(r.Context(), h.DB, id, u.FlowOverride); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		if len(u.Category) == 0 {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
+			return
+		}
 	}
 
 	if u.Category == nil || len(u.Category) == 0 {
@@ -554,6 +607,29 @@ func nullStringToValue(n sql.NullString) any {
 		return nil
 	}
 	return n.String
+}
+
+// applyFlowOverride sets fin_transactions.flow_override. Pass JSON
+// `null` to clear (revert to classifier defaults). Valid values:
+// income | spent | saved | exclude.
+func applyFlowOverride(ctx context.Context, db *sql.DB, id string, raw json.RawMessage) error {
+	if string(raw) == "null" {
+		_, err := db.ExecContext(ctx,
+			`UPDATE fin_transactions SET flow_override = NULL WHERE actual_id = ?`, id)
+		return err
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return errString("flow_override must be string or null")
+	}
+	switch s {
+	case "income", "spent", "saved", "exclude":
+		_, err := db.ExecContext(ctx,
+			`UPDATE fin_transactions SET flow_override = ? WHERE actual_id = ?`, s, id)
+		return err
+	default:
+		return errString("flow_override must be one of: income, spent, saved, exclude, null")
+	}
 }
 
 // excludeNonSpendSQL is the predicate that drops zero-sum and bootstrap
@@ -849,30 +925,24 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.NetWorthCents = resp.OnBudgetCents + resp.OffBudgetCents
 
-	// Income vs spend.
-	//
-	// Income deliberately does NOT require on_budget=1 — Amex Checking
-	// and similar off-budget cash accounts still receive paychecks and
-	// the user wants those counted. transfer_id + Payment-category
-	// filters in excludeNonSpendSQL handle the dedup.
-	//
-	// Spend requires on_budget=1 — off-budget investment / mortgage
-	// balance changes are NOT real spending.
-	if err := h.DB.QueryRowContext(r.Context(),
-		`SELECT
-		   COALESCE((SELECT SUM(t.amount_cents)
-		             FROM fin_transactions t
-		             JOIN fin_accounts a ON a.actual_id = t.account_id
-		             WHERE t.date LIKE ? AND t.amount_cents > 0
-		               AND `+excludeNonSpendSQL+`), 0),
-		   COALESCE((SELECT -SUM(t.amount_cents)
-		             FROM fin_transactions t
-		             JOIN fin_accounts a ON a.actual_id = t.account_id
-		             WHERE t.date LIKE ? AND t.amount_cents < 0 AND a.on_budget = 1
-		               AND `+excludeNonSpendSQL+`), 0)`, monthLike, monthLike).
-		Scan(&resp.IncomeCents, &resp.SpentCents); err != nil {
+	// Income / spent / saved come from the single Go classifier so the
+	// drilldown lists always reconcile to the headline numbers.
+	classified, err := loadClassifiedMonth(r.Context(), h.DB, monthLike)
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
+	}
+	for _, c := range classified {
+		switch c.Flow {
+		case FlowIncome:
+			resp.IncomeCents += c.AmountCents
+		case FlowSpent:
+			// AmountCents is negative for spent rows; SpentCents is the
+			// absolute total so the donut shows a positive figure.
+			resp.SpentCents += -c.AmountCents
+		case FlowSaved:
+			resp.SavedCents += c.AmountCents
+		}
 	}
 
 	// Per-category spend joined to budget targets. The effective category
@@ -918,19 +988,10 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.BudgetedCents = totalBudgeted
 
-	// SavedCents = sum of positive inflows this month into accounts whose
-	// name flags them as savings/retirement/brokerage destinations. This
-	// replaces the earlier "income - spent" definition, which collapsed to
-	// a meaningless residual when on-budget income lagged on-budget spend.
-	//
-	// Starting Balance bootstrap rows are excluded so the figure reflects
-	// new contributions only, not the initial balance import.
-	saved, err := computeSavedCents(r.Context(), h.DB, monthLike)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	resp.SavedCents = saved
+	// SavedCents already populated by the Classify pass above. Keeping
+	// computeSavedCents for backward-compat callers (AI tools) but the
+	// summary's saved number is now produced inside the same loop as
+	// income/spent so there's exactly one place to debug.
 
 	settings, err := readFinanceSettings(r.Context(), h.DB)
 	if err != nil {

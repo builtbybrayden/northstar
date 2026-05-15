@@ -49,6 +49,8 @@ struct FlowDrilldownSheet: View {
                     headerCard
                     if flow == .saved {
                         targetCard
+                    } else {
+                        manageAccountsCard
                     }
                     txList
                 }
@@ -78,7 +80,7 @@ struct FlowDrilldownSheet: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingAccountSettings) {
-            SavingsAccountsSheet {
+            AccountFlagsSheet {
                 Task { await load() }
                 onSettingsChanged()
             }
@@ -107,6 +109,31 @@ struct FlowDrilldownSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var manageAccountsCard: some View {
+        Button { showingAccountSettings = true } label: {
+            HStack {
+                Image(systemName: "slider.horizontal.3")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Manage accounts")
+                        .font(.system(.footnote, weight: .semibold))
+                    Text("Pick which accounts roll into \(flow.title.lowercased()).")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.text3)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(Theme.text3)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .foregroundStyle(Theme.ai)
+        }
+        .buttonStyle(.plain)
     }
 
     private var targetCard: some View {

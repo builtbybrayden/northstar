@@ -16,6 +16,7 @@ struct TransactionDetailSheet: View {
     let onSaved: () -> Void
 
     @State private var selectedCategory: String
+    @State private var selectedFlow: String // "auto" | "income" | "spent" | "saved" | "exclude"
     @State private var saving = false
     @State private var saveError: String?
 
@@ -24,6 +25,7 @@ struct TransactionDetailSheet: View {
         self.availableCategories = availableCategories
         self.onSaved = onSaved
         _selectedCategory = State(initialValue: txn.category)
+        _selectedFlow = State(initialValue: txn.flow_override ?? "auto")
     }
 
     private var pickerOptions: [String] {
@@ -46,9 +48,21 @@ struct TransactionDetailSheet: View {
         return false
     }
 
-    private var hasChange: Bool {
+    private var hasCategoryChange: Bool {
         selectedCategory.trimmingCharacters(in: .whitespaces) != txn.category
     }
+    private var hasFlowChange: Bool {
+        selectedFlow != (txn.flow_override ?? "auto")
+    }
+    private var hasChange: Bool { hasCategoryChange || hasFlowChange }
+
+    private static let flowOptions: [(value: String, label: String)] = [
+        ("auto", "Auto"),
+        ("income", "Income"),
+        ("spent", "Spent"),
+        ("saved", "Saved"),
+        ("exclude", "Exclude"),
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -60,6 +74,7 @@ struct TransactionDetailSheet: View {
 
             header
             detailsCard
+            flowCard
             categoryCard
 
             if let saveError {
@@ -119,6 +134,67 @@ struct TransactionDetailSheet: View {
                 .foregroundStyle(Theme.text2)
                 .lineLimit(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var flowCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("CLASSIFY AS")
+                    .font(.caption2).bold().tracking(1)
+                    .foregroundStyle(Theme.text3)
+                Spacer()
+                if txn.flow_override != nil {
+                    Text("OVERRIDDEN")
+                        .font(.caption2).bold().tracking(1)
+                        .foregroundStyle(Theme.ai)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(Theme.ai.opacity(0.18))
+                        .clipShape(Capsule())
+                }
+            }
+            FlowLayout(spacing: 8) {
+                ForEach(Self.flowOptions, id: \.value) { opt in
+                    Button {
+                        selectedFlow = opt.value
+                    } label: {
+                        Text(opt.label)
+                            .font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(opt.value == selectedFlow ? colorForFlow(opt.value) : Theme.surfaceHi)
+                            .foregroundStyle(opt.value == selectedFlow ? .white : Theme.text2)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Text(flowCaption)
+                .font(.caption)
+                .foregroundStyle(Theme.text3)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var flowCaption: String {
+        switch selectedFlow {
+        case "auto":    return "Auto: classifier picks the donut based on account + sign."
+        case "income":  return "Forced into Income."
+        case "spent":   return "Forced into Spent."
+        case "saved":   return "Forced into Saved."
+        case "exclude": return "Dropped from all donuts."
+        default:        return ""
+        }
+    }
+    private func colorForFlow(_ v: String) -> Color {
+        switch v {
+        case "income":  return Theme.healthMid
+        case "spent":   return Theme.finance
+        case "saved":   return Theme.goals
+        case "exclude": return Color.gray
+        default:        return Theme.ai
         }
     }
 
@@ -208,7 +284,13 @@ struct TransactionDetailSheet: View {
         saving = true
         defer { saving = false }
         do {
-            try await api.updateTransactionCategory(id: txn.id, category: selectedCategory)
+            if hasFlowChange {
+                let newOverride: String? = selectedFlow == "auto" ? nil : selectedFlow
+                try await api.setTransactionFlowOverride(id: txn.id, value: newOverride)
+            }
+            if hasCategoryChange {
+                try await api.updateTransactionCategory(id: txn.id, category: selectedCategory)
+            }
             onSaved()
             dismiss()
         } catch let e as APIClient.APIError {

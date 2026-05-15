@@ -34,6 +34,10 @@ type SidecarAccount struct {
 	OffBudget bool   `json:"offbudget"`
 	Closed    bool   `json:"closed"`
 	Balance   int64  `json:"balance"` // cents
+	// Type is Actual's account.type: checking | savings | credit |
+	// investment | mortgage | debt | other. Empty string when the
+	// sidecar can't determine it.
+	Type string `json:"type"`
 }
 
 type SidecarCategory struct {

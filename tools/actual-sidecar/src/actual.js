@@ -48,6 +48,11 @@ export async function accounts() {
       offbudget: !!acc.offbudget,
       closed: !!acc.closed,
       balance: balance ?? 0,
+      // Actual's account type: checking | savings | credit | investment
+      // | mortgage | debt | other. Used downstream to default the
+      // "include in income / saved" flags so the user only has to
+      // toggle the exceptions.
+      type: acc.type || acc.account_type || '',
     });
   }
   return out;
