@@ -76,10 +76,22 @@ Shipped 2026-05-15:
   spent-vs-income when no budget targets are set so it stops collapsing
   to 0%.
 
+Shipped 2026-05-15 (later):
+
+- ✅ **Transfer / split-parent deduplication** — Sidecar now forwards
+  Actual's `transfer_id` + `is_parent` flags; migration 00009 persists
+  them. CC payments, account transfers, and split parents are filtered
+  out of income / spend / per-category aggregates so the donut totals
+  stop inflating 2-3x. Starting-balance detection widened to catch
+  "Initial Balance" and "Opening Balance" payee variants.
+- ✅ **Forecast-driven notifications** — new `forecast_warning` category
+  + `ForecastWarning` detector runs after each finance sync. Fires when
+  the 30-day projected on-budget balance dips below
+  `NORTHSTAR_FORECAST_CASH_FLOOR_CENTS` (default $0). Bypasses quiet
+  hours; priority Critical when projection goes negative.
+
 Still on the maybe list:
 
-- **Forecast-driven notifications** — fire a `forecast_warning` when the
-  projection crosses zero or a configurable cash floor
 - **HealthKit ingest** if WHOOP gets retired or you want a non-WHOOP path
 
 ## Phase 8 — maybe

@@ -81,6 +81,10 @@ func main() {
 
 		detector := finance.NewDetector(d, composer)
 		syncer := finance.NewSyncer(d, sc, detector, cfg.Finance.SyncInterval)
+		syncer.ForecastWarning = finance.NewForecastWarning(
+			detector,
+			cfg.Finance.ForecastCashFloorCents,
+			cfg.Finance.ForecastHorizonDays)
 		go syncer.Run(ctx)
 	} else {
 		log.Printf("finance sync disabled")

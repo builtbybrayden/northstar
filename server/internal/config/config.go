@@ -33,6 +33,15 @@ type Config struct {
 		ActualPassword     string
 		ActualSyncID       string
 		ActualEncryption   string // empty if budget isn't e2e encrypted
+		// ForecastCashFloorCents is the on-budget projected balance below
+		// which a `forecast_warning` notification fires after each sync.
+		// Set via NORTHSTAR_FORECAST_CASH_FLOOR_CENTS; default $0 (i.e.
+		// only warn if the projection goes negative).
+		ForecastCashFloorCents int64
+		// ForecastHorizonDays controls how far ahead the warning detector
+		// looks. Defaults to 30 days; the user-facing forecast endpoint
+		// still defaults to 90.
+		ForecastHorizonDays int
 	}
 
 	Health struct {
@@ -74,6 +83,8 @@ func Load() Config {
 	c.Finance.ActualPassword = env("NORTHSTAR_ACTUAL_PASSWORD", "")
 	c.Finance.ActualSyncID = env("NORTHSTAR_ACTUAL_SYNC_ID", "")
 	c.Finance.ActualEncryption = env("NORTHSTAR_ACTUAL_ENCRYPTION_PASSWORD", "")
+	c.Finance.ForecastCashFloorCents = int64(envInt("NORTHSTAR_FORECAST_CASH_FLOOR_CENTS", 0))
+	c.Finance.ForecastHorizonDays = envInt("NORTHSTAR_FORECAST_HORIZON_DAYS", 30)
 
 	c.Health.SidecarURL = env("NORTHSTAR_HEALTH_SIDECAR_URL", "http://127.0.0.1:9091")
 	c.Health.SidecarSecret = env("NORTHSTAR_HEALTH_SIDECAR_SECRET", "")

@@ -426,16 +426,25 @@ func nullStringToValue(n sql.NullString) any {
 	return n.String
 }
 
-// excludeNonSpendSQL is the predicate that drops Transfer and Starting
-// Balance rows from aggregate calculations. Centralized so the txn list,
-// summary, forecast, and AI tools all stay in sync.
+// excludeNonSpendSQL is the predicate that drops zero-sum and bootstrap
+// rows from aggregate calculations. Centralized so the txn list, summary,
+// forecast, and AI tools all stay in sync. Five conditions:
 //
-// Two conditions because:
-//   - Transfer is always categorized (well-defined Actual category)
-//   - Starting Balances has ~30% of rows with NULL category in Actual, so
-//     a payee-substring fallback is needed
+//  1. Category != 'Transfer' — Actual's well-defined transfer category
+//  2. Category != 'Starting Balances' — bootstrap import
+//  3. Payee NOT LIKE 'starting/initial/opening balance%' — Actual leaves
+//     ~30% of bootstrap rows with NULL category, payee fallback catches them
+//  4. transfer_id IS NULL — covers both legs of any inter-account move
+//     (CC payments, savings funding, broker deposits) regardless of how
+//     Actual categorized them. Sourced from r.transfer_id on each side.
+//  5. is_parent = 0 — split parents carry the gross amount that the
+//     children already sum to; counting both double-counts the line.
 const excludeNonSpendSQL = `COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')
-   AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`
+   AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'
+   AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'
+   AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'
+   AND t.transfer_id IS NULL
+   AND t.is_parent = 0`
 
 func trimSpaces(s string) string {
 	start, end := 0, len(s)
@@ -671,7 +680,9 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Per-category spend joined to budget targets. The effective category
-	// honors per-row user overrides (category_user) when present.
+	// honors per-row user overrides (category_user) when present. Transfers
+	// and split parents are excluded so a mis-categorized CC payment
+	// can't inflate a budget line.
 	rows, err := h.DB.QueryContext(r.Context(),
 		`SELECT b.category,
 		        COALESCE(b.category_group,'') AS grp,
@@ -680,7 +691,9 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 		                   WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = b.category
 		                     AND t.date LIKE ?
 		                     AND t.amount_cents < 0
-		                     AND a.on_budget = 1), 0) AS spent,
+		                     AND a.on_budget = 1
+		                     AND t.transfer_id IS NULL
+		                     AND t.is_parent = 0), 0) AS spent,
 		        b.monthly_cents
 		   FROM fin_budget_targets b
 		   ORDER BY b.category ASC`, monthLike)
@@ -761,14 +774,21 @@ func computeSavedCents(ctx context.Context, db *sql.DB, monthLike string) (int64
 		args = append(args, id)
 	}
 	var saved int64
+	// NB: we intentionally DO NOT filter out transfer_id IS NOT NULL here.
+	// A transfer from checking → savings is exactly the kind of "saving"
+	// the user wants counted. Split parents are filtered because their
+	// children sum to the same amount and would double-count.
 	if err := db.QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(t.amount_cents), 0)
 		   FROM fin_transactions t
 		  WHERE t.date LIKE ?
 		    AND t.amount_cents > 0
 		    AND t.account_id IN (`+placeholders+`)
+		    AND t.is_parent = 0
 		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Starting Balances'
-		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`,
+		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'
+		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'
+		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`,
 		args...).Scan(&saved); err != nil {
 		return 0, err
 	}

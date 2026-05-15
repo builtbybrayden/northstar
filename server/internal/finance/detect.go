@@ -143,7 +143,9 @@ func (d *Detector) CheckThresholds(ctx context.Context) error {
 		                 WHERE COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) = b.category
 		                   AND t.date LIKE ?
 		                   AND t.amount_cents < 0
-		                   AND a.on_budget = 1), 0) AS spent,
+		                   AND a.on_budget = 1
+		                   AND t.transfer_id IS NULL
+		                   AND t.is_parent = 0), 0) AS spent,
 		       b.monthly_cents,
 		       b.threshold_pcts,
 		       b.push_enabled,

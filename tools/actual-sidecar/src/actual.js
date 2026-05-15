@@ -93,8 +93,17 @@ export async function transactions({ since } = {}) {
         date: r.date,
         payee: name,
         category: r.category || null,
-        amount: r.amount,         // cents (negative = outflow)
+        amount: r.amount,           // cents (negative = outflow)
         notes: r.notes || '',
+        // transfer_id is set on BOTH legs of an inter-account move (CC
+        // payment, savings transfer, broker funding). Used downstream to
+        // strip zero-sum legs from income/spend totals so they aren't
+        // counted as real money flow.
+        transfer_id: r.transfer_id || null,
+        // is_parent flags the gross row of a split transaction. The
+        // children sum to the same gross amount and carry the
+        // categories — counting both double-counts the line.
+        is_parent: !!r.is_parent,
       });
     }
   }

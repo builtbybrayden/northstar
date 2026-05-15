@@ -29,7 +29,9 @@ func forecastDB(t *testing.T) *sql.DB {
 		   actual_id TEXT PRIMARY KEY, account_id TEXT, date TEXT,
 		   payee TEXT, category TEXT, amount_cents INTEGER NOT NULL,
 		   notes TEXT, imported_at INTEGER NOT NULL,
-		   category_user TEXT)`,
+		   category_user TEXT,
+		   transfer_id TEXT,
+		   is_parent INTEGER NOT NULL DEFAULT 0)`,
 	}
 	for _, s := range stmts {
 		if _, err := d.Exec(s); err != nil {

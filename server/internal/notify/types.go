@@ -17,6 +17,7 @@ const (
 	CatGoalMilestone   = "goal_milestone"
 	CatSubscriptionNew = "subscription_new"
 	CatWeeklyRetro     = "weekly_retro"
+	CatForecastWarning = "forecast_warning"
 )
 
 // Priority levels. >=8 bypasses quiet hours.

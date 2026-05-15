@@ -66,6 +66,9 @@ func TestMigrate_AppliesAll(t *testing.T) {
 		// Phase 7.5 — daily account balance snapshots
 		{"fin_account_balance_history", "balance_cents"},
 		{"fin_account_balance_history", "on_budget"},
+		// Phase 7.5 — transfer linkage + split flag
+		{"fin_transactions", "transfer_id"},
+		{"fin_transactions", "is_parent"},
 	}
 	for _, c := range cases {
 		t.Run(c.table+"."+c.column, func(t *testing.T) {
@@ -132,6 +135,7 @@ func TestMigrate_SeededNotifRules(t *testing.T) {
 		"daily_brief", "evening_retro",
 		"supplement", "health_insight", "goal_milestone",
 		"subscription_new", "weekly_retro",
+		"forecast_warning",
 	}
 	for _, cat := range wantCategories {
 		var found int

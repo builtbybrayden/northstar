@@ -10,10 +10,11 @@ import (
 // Syncer periodically pulls from the Actual sidecar and mirrors into SQLite.
 // Diff-based — only upserts on changes. Runs forever until ctx is cancelled.
 type Syncer struct {
-	DB       *sql.DB
-	Sidecar  *SidecarClient
-	Detector *Detector // optional; nil disables notifications (Phase 1-only mode)
-	Interval time.Duration
+	DB              *sql.DB
+	Sidecar         *SidecarClient
+	Detector        *Detector // optional; nil disables notifications (Phase 1-only mode)
+	ForecastWarning *ForecastWarning // optional; nil disables forecast warnings
+	Interval        time.Duration
 }
 
 func NewSyncer(db *sql.DB, sc *SidecarClient, detector *Detector, interval time.Duration) *Syncer {
@@ -189,6 +190,14 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 		}
 	}
 
+	// 6. Forecast warning — fires forecast_warning if projection dips
+	// below the configured cash floor over the horizon. Optional.
+	if s.ForecastWarning != nil {
+		if err := s.ForecastWarning.Check(ctx, time.Now().UTC()); err != nil {
+			log.Printf("finance.sync: forecast warning check failed: %v", err)
+		}
+	}
+
 	if initialBackfill {
 		log.Printf("finance.sync: synced %d accounts (%d new txns / %d updated) [initial backfill — purchase/anomaly suppressed]",
 			len(accs), newCount, updCount)
@@ -202,12 +211,17 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 // actual_id did not exist before this call. We do this in two steps so we
 // can return the boolean cleanly — `INSERT ... ON CONFLICT DO NOTHING` then
 // check RowsAffected, then a separate UPDATE if it already existed.
+//
+// The UPDATE includes transfer_id + is_parent so historical rows that
+// pre-date migration 00009 get backfilled on the next sync pass.
 func (s *Syncer) upsertTxn(ctx context.Context, t SidecarTransaction, categoryName string, now int64) (bool, error) {
+	transferID := sqlNullString(t.TransferID)
+	isParent := boolToInt(t.IsParent)
 	res, err := s.DB.ExecContext(ctx,
-		`INSERT INTO fin_transactions (actual_id, account_id, date, payee, category, amount_cents, notes, imported_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO fin_transactions (actual_id, account_id, date, payee, category, amount_cents, notes, imported_at, transfer_id, is_parent)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(actual_id) DO NOTHING`,
-		t.ID, t.Account, t.Date, t.Payee, categoryName, t.Amount, t.Notes, now)
+		t.ID, t.Account, t.Date, t.Payee, categoryName, t.Amount, t.Notes, now, transferID, isParent)
 	if err != nil {
 		return false, err
 	}
@@ -215,13 +229,22 @@ func (s *Syncer) upsertTxn(ctx context.Context, t SidecarTransaction, categoryNa
 	if n == 1 {
 		return true, nil
 	}
-	// Existed — update mutable fields
 	_, err = s.DB.ExecContext(ctx,
 		`UPDATE fin_transactions SET
-		   account_id = ?, date = ?, payee = ?, category = ?, amount_cents = ?, notes = ?
+		   account_id = ?, date = ?, payee = ?, category = ?, amount_cents = ?, notes = ?,
+		   transfer_id = ?, is_parent = ?
 		 WHERE actual_id = ?`,
-		t.Account, t.Date, t.Payee, categoryName, t.Amount, t.Notes, t.ID)
+		t.Account, t.Date, t.Payee, categoryName, t.Amount, t.Notes, transferID, isParent, t.ID)
 	return false, err
+}
+
+// sqlNullString returns nil for empty strings (so the column stays NULL,
+// which the index + filters expect) and the string itself otherwise.
+func sqlNullString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func boolToInt(b bool) int {

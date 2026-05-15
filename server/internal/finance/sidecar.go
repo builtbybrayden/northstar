@@ -51,6 +51,14 @@ type SidecarTransaction struct {
 	Category string `json:"category"` // Actual category id (may be empty)
 	Amount   int64  `json:"amount"`   // cents, negative = outflow
 	Notes    string `json:"notes"`
+	// TransferID is the peer transaction id on the other side of an
+	// inter-account move. Set on BOTH legs in Actual. Used to strip
+	// zero-sum transfers (CC payments, savings funding, broker deposits)
+	// from income/spend totals.
+	TransferID string `json:"transfer_id"`
+	// IsParent flags the gross row of a split transaction. Children
+	// carry the categorized line items; counting both double-counts.
+	IsParent bool `json:"is_parent"`
 }
 
 type SidecarBudgets struct {
