@@ -71,6 +71,8 @@ func TestMigrate_AppliesAll(t *testing.T) {
 		{"fin_transactions", "is_parent"},
 		// Phase 7.5 — finance settings (savings target)
 		{"fin_settings", "savings_target_pct"},
+		// Phase 7.5 — per-account savings destination override
+		{"fin_accounts", "is_savings_destination"},
 	}
 	for _, c := range cases {
 		t.Run(c.table+"."+c.column, func(t *testing.T) {

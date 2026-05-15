@@ -30,7 +30,8 @@ func inMemFinanceDB(t *testing.T) *sql.DB {
 		   balance_cents INTEGER NOT NULL DEFAULT 0,
 		   on_budget INTEGER NOT NULL DEFAULT 1,
 		   closed INTEGER NOT NULL DEFAULT 0,
-		   updated_at INTEGER NOT NULL)`,
+		   updated_at INTEGER NOT NULL,
+		   is_savings_destination INTEGER)`,
 		`CREATE TABLE fin_transactions (
 		   actual_id TEXT PRIMARY KEY, account_id TEXT, date TEXT,
 		   payee TEXT, category TEXT, amount_cents INTEGER NOT NULL,

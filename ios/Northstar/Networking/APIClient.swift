@@ -127,6 +127,25 @@ struct APIClient {
     func updateFinanceSettings(_ s: FinanceSettings) async throws -> FinanceSettings {
         try await patch(path: "/api/finance/settings", body: s)
     }
+    /// Toggle an account's "savings destination" override. Pass nil to
+    /// clear the override and revert to the server-side name heuristic.
+    func setAccountSavingsDestination(id: String, value: Bool?) async throws {
+        let e = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        try await patchVoid(path: "/api/finance/accounts/\(e)",
+                            body: AccountUpdate(value: value))
+    }
+    struct AccountUpdate: Encodable {
+        let value: Bool?
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            if let value {
+                try c.encode(value, forKey: .is_savings_destination)
+            } else {
+                try c.encodeNil(forKey: .is_savings_destination)
+            }
+        }
+        enum CodingKeys: String, CodingKey { case is_savings_destination }
+    }
 
     /// Apply a user category override to a single transaction.
     /// Pass `nil` to clear the override and revert to the upstream value.

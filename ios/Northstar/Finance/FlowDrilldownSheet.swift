@@ -39,6 +39,8 @@ struct FlowDrilldownSheet: View {
     @State private var savingsTargetPct: Int = 25
     @State private var savingTarget = false
     @State private var targetError: String?
+    @State private var detailTxn: Transaction?
+    @State private var showingAccountSettings = false
 
     var body: some View {
         NavigationStack {
@@ -65,6 +67,23 @@ struct FlowDrilldownSheet: View {
             }
         }
         .task { await load() }
+        .sheet(item: $detailTxn) { t in
+            TransactionDetailSheet(
+                txn: t,
+                availableCategories: summary.categories.map(\.category)
+            ) {
+                Task { await load() }
+                onSettingsChanged()
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingAccountSettings) {
+            SavingsAccountsSheet {
+                Task { await load() }
+                onSettingsChanged()
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 
     // ─── Subviews ────────────────────────────────────────────────────────
@@ -119,6 +138,22 @@ struct FlowDrilldownSheet: View {
                     .font(.footnote)
                     .foregroundStyle(Theme.financeBad)
             }
+            Divider().overlay(Theme.border).padding(.vertical, 4)
+            Button {
+                showingAccountSettings = true
+            } label: {
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                    Text("Manage savings accounts")
+                        .font(.system(.footnote, weight: .semibold))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(Theme.text3)
+                }
+                .foregroundStyle(Theme.ai)
+            }
+            .buttonStyle(.plain)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -166,7 +201,10 @@ struct FlowDrilldownSheet: View {
                     .padding(.vertical, 18)
             } else {
                 ForEach(transactions) { t in
-                    FinanceTransactionRow(txn: t)
+                    Button { detailTxn = t } label: {
+                        FinanceTransactionRow(txn: t)
+                    }
+                    .buttonStyle(.plain)
                     if t.id != transactions.last?.id {
                         Divider().overlay(Theme.border)
                     }

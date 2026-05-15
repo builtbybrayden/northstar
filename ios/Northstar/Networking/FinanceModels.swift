@@ -6,6 +6,11 @@ struct Account: Decodable, Identifiable {
     let balance_cents: Int64
     let on_budget: Bool
     let closed: Bool
+    /// Effective resolved value — override when user has toggled,
+    /// else the server-side name heuristic.
+    let is_savings_destination: Bool?
+    /// nil = no override (heuristic governs), true/false = explicit.
+    let savings_destination_override: Bool?
 }
 
 struct Transaction: Decodable, Identifiable {

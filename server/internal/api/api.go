@@ -78,6 +78,7 @@ func (s *Server) Router() http.Handler {
 
 		if s.cfg.Pillars.Finance {
 			r.Get("/api/finance/accounts", fin.Accounts)
+			r.Patch("/api/finance/accounts/{id}", fin.UpdateAccount)
 			r.Get("/api/finance/transactions", fin.Transactions)
 			r.Patch("/api/finance/transactions/{id}", fin.UpdateTransaction)
 			r.Get("/api/finance/summary", fin.Summary)

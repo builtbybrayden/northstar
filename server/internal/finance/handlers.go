@@ -214,11 +214,18 @@ type accountDTO struct {
 	BalanceCents int64  `json:"balance_cents"`
 	OnBudget     bool   `json:"on_budget"`
 	Closed       bool   `json:"closed"`
+	// IsSavingsDestination is the effective resolved value (override
+	// when set, name heuristic otherwise) so the iOS toggle UI shows
+	// the right initial state without having to re-run the heuristic.
+	IsSavingsDestination bool `json:"is_savings_destination"`
+	// SavingsDestinationOverride is the raw column value: nil = no
+	// override (heuristic governs), 0/1 = explicit user toggle.
+	SavingsDestinationOverride *bool `json:"savings_destination_override,omitempty"`
 }
 
 func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(r.Context(),
-		`SELECT actual_id, name, balance_cents, on_budget, closed
+		`SELECT actual_id, name, balance_cents, on_budget, closed, is_savings_destination
 		   FROM fin_accounts WHERE closed = 0
 		   ORDER BY on_budget DESC, name ASC`)
 	if err != nil {
@@ -231,15 +238,73 @@ func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var a accountDTO
 		var onBudget, closed int
-		if err := rows.Scan(&a.ID, &a.Name, &a.BalanceCents, &onBudget, &closed); err != nil {
+		var override sql.NullInt64
+		if err := rows.Scan(&a.ID, &a.Name, &a.BalanceCents, &onBudget, &closed, &override); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
 		a.OnBudget = onBudget == 1
 		a.Closed = closed == 1
+		if override.Valid {
+			v := override.Int64 == 1
+			a.SavingsDestinationOverride = &v
+			a.IsSavingsDestination = v
+		} else {
+			a.IsSavingsDestination = isSavingsDestination(a.Name)
+		}
 		out = append(out, a)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// PATCH /api/finance/accounts/{id}
+//
+// Currently the only mutable field is is_savings_destination. Pass null
+// to clear the override and revert to the name heuristic.
+type accountUpdate struct {
+	IsSavingsDestination json.RawMessage `json:"is_savings_destination"`
+}
+
+func (h *Handlers) UpdateAccount(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeErrMsg(w, http.StatusBadRequest, "id required")
+		return
+	}
+	var u accountUpdate
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		writeErrMsg(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if len(u.IsSavingsDestination) == 0 {
+		writeErrMsg(w, http.StatusBadRequest, "no fields to update")
+		return
+	}
+	if string(u.IsSavingsDestination) == "null" {
+		_, err := h.DB.ExecContext(r.Context(),
+			`UPDATE fin_accounts SET is_savings_destination = NULL WHERE actual_id = ?`, id)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+	} else {
+		var b bool
+		if err := json.Unmarshal(u.IsSavingsDestination, &b); err != nil {
+			writeErrMsg(w, http.StatusBadRequest, "is_savings_destination must be bool or null")
+			return
+		}
+		val := 0
+		if b {
+			val = 1
+		}
+		_, err := h.DB.ExecContext(r.Context(),
+			`UPDATE fin_accounts SET is_savings_destination = ? WHERE actual_id = ?`, val, id)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // ─── /api/finance/transactions ────────────────────────────────────────────
@@ -303,6 +368,11 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 
 	// flow= filters mirror the donut math one-to-one so the drilldown
 	// list always reconciles to the headline number.
+	//
+	// Both spent + income exclude transfers, split parents, starting-
+	// balance variants, and Payment-category rows (defense against
+	// CC payments that arrive without a transfer_id link — without this,
+	// the destination leg of a manual CC payment shows up as income).
 	var savingsDestIDs []string
 	switch flowFilter {
 	case "spent":
@@ -311,16 +381,21 @@ func (h *Handlers) Transactions(w http.ResponseWriter, r *http.Request) {
 			`t.amount_cents < 0`,
 			`t.transfer_id IS NULL`,
 			`t.is_parent = 0`,
-			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Transfer'`,
+			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Credit Card Payment','Payment')`,
+			`LOWER(COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,''))) NOT LIKE '%credit card payment%'`,
 			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'`,
 			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`)
 	case "income":
+		// Deliberately NOT filtering on a.on_budget — Amex Checking
+		// and similar off-budget cash accounts still receive paychecks.
+		// transfer_id + Payment-category filters handle the dedup.
 		clauses = append(clauses,
-			`a.on_budget = 1`,
 			`t.amount_cents > 0`,
 			`t.transfer_id IS NULL`,
 			`t.is_parent = 0`,
-			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Transfer'`,
+			`COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Credit Card Payment','Payment','Starting Balances')`,
+			`LOWER(COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,''))) NOT LIKE '%credit card payment%'`,
+			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`,
 			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'`,
 			`LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'`)
 	case "saved":
@@ -494,7 +569,8 @@ func nullStringToValue(n sql.NullString) any {
 //     Actual categorized them. Sourced from r.transfer_id on each side.
 //  5. is_parent = 0 — split parents carry the gross amount that the
 //     children already sum to; counting both double-counts the line.
-const excludeNonSpendSQL = `COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances')
+const excludeNonSpendSQL = `COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) NOT IN ('Transfer','Starting Balances','Credit Card Payment','Payment')
+   AND LOWER(COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,''))) NOT LIKE '%credit card payment%'
    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'
    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'initial balance%'
    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'opening balance%'
@@ -589,11 +665,16 @@ func classifyInvestmentAccount(name string) string {
 }
 
 // savingsDestinationIDs returns the actual_ids of every open account
-// flagged by isSavingsDestination. Used by /transactions?flow=saved
-// and the saved-cents aggregator. Empty slice if none match.
+// that's flagged as a savings destination. Used by /transactions?flow=
+// saved and the saved-cents aggregator.
+//
+// Resolution order: the user's per-account override
+// (fin_accounts.is_savings_destination) wins when set; otherwise the
+// name heuristic (isSavingsDestination) runs. Empty slice if none match.
 func savingsDestinationIDs(ctx context.Context, db *sql.DB) ([]string, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT actual_id, name FROM fin_accounts WHERE closed = 0`)
+		`SELECT actual_id, name, is_savings_destination
+		   FROM fin_accounts WHERE closed = 0`)
 	if err != nil {
 		return nil, err
 	}
@@ -601,10 +682,18 @@ func savingsDestinationIDs(ctx context.Context, db *sql.DB) ([]string, error) {
 	var ids []string
 	for rows.Next() {
 		var id, name string
-		if err := rows.Scan(&id, &name); err != nil {
+		var override sql.NullInt64
+		if err := rows.Scan(&id, &name, &override); err != nil {
 			return nil, err
 		}
-		if isSavingsDestination(name) {
+		var isDest bool
+		switch {
+		case override.Valid:
+			isDest = override.Int64 == 1
+		default:
+			isDest = isSavingsDestination(name)
+		}
+		if isDest {
 			ids = append(ids, id)
 		}
 	}
@@ -760,15 +849,27 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.NetWorthCents = resp.OnBudgetCents + resp.OffBudgetCents
 
-	// Income and spend for the month (joining account to filter on-budget only for spend)
+	// Income vs spend.
+	//
+	// Income deliberately does NOT require on_budget=1 — Amex Checking
+	// and similar off-budget cash accounts still receive paychecks and
+	// the user wants those counted. transfer_id + Payment-category
+	// filters in excludeNonSpendSQL handle the dedup.
+	//
+	// Spend requires on_budget=1 — off-budget investment / mortgage
+	// balance changes are NOT real spending.
 	if err := h.DB.QueryRowContext(r.Context(),
 		`SELECT
-		   COALESCE(SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents END), 0),
-		   COALESCE(-SUM(CASE WHEN t.amount_cents < 0 THEN t.amount_cents END), 0)
-		 FROM fin_transactions t
-		 JOIN fin_accounts a ON a.actual_id = t.account_id
-		 WHERE t.date LIKE ? AND a.on_budget = 1
-		   AND `+excludeNonSpendSQL+``, monthLike).
+		   COALESCE((SELECT SUM(t.amount_cents)
+		             FROM fin_transactions t
+		             JOIN fin_accounts a ON a.actual_id = t.account_id
+		             WHERE t.date LIKE ? AND t.amount_cents > 0
+		               AND `+excludeNonSpendSQL+`), 0),
+		   COALESCE((SELECT -SUM(t.amount_cents)
+		             FROM fin_transactions t
+		             JOIN fin_accounts a ON a.actual_id = t.account_id
+		             WHERE t.date LIKE ? AND t.amount_cents < 0 AND a.on_budget = 1
+		               AND `+excludeNonSpendSQL+`), 0)`, monthLike, monthLike).
 		Scan(&resp.IncomeCents, &resp.SpentCents); err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -846,24 +947,8 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 // "2026-05-%") on every account flagged by isSavingsDestination, excluding
 // Starting Balance bootstrap rows.
 func computeSavedCents(ctx context.Context, db *sql.DB, monthLike string) (int64, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT actual_id, name FROM fin_accounts WHERE closed = 0`)
+	destIDs, err := savingsDestinationIDs(ctx, db)
 	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	var destIDs []string
-	for rows.Next() {
-		var id, name string
-		if err := rows.Scan(&id, &name); err != nil {
-			return 0, err
-		}
-		if isSavingsDestination(name) {
-			destIDs = append(destIDs, id)
-		}
-	}
-	if err := rows.Err(); err != nil {
 		return 0, err
 	}
 	if len(destIDs) == 0 {
