@@ -30,9 +30,14 @@ struct FlowDrilldownSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let flow: FinanceFlow
-    let summary: FinanceSummary
+    let initialSummary: FinanceSummary
     let onSettingsChanged: () -> Void
 
+    /// Mutable copy so the header re-renders after the user changes an
+    /// account flag or a per-transaction override. `load()` always
+    /// re-fetches the summary alongside the transaction list so the
+    /// donut headline + list are guaranteed to reconcile.
+    @State private var summary: FinanceSummary
     @State private var transactions: [Transaction] = []
     @State private var loading = true
     @State private var loadError: String?
@@ -41,6 +46,13 @@ struct FlowDrilldownSheet: View {
     @State private var targetError: String?
     @State private var detailTxn: Transaction?
     @State private var showingAccountSettings = false
+
+    init(flow: FinanceFlow, summary: FinanceSummary, onSettingsChanged: @escaping () -> Void) {
+        self.flow = flow
+        self.initialSummary = summary
+        self.onSettingsChanged = onSettingsChanged
+        _summary = State(initialValue: summary)
+    }
 
     var body: some View {
         NavigationStack {
@@ -282,15 +294,22 @@ struct FlowDrilldownSheet: View {
         }
         loading = true
         loadError = nil
-        if flow == .saved, let pct = summary.savings_target_pct {
-            savingsTargetPct = pct
-        }
         do {
-            let list = try await api.financeTransactionsByFlow(
+            // Refetch summary alongside the list so the header reflects
+            // any account-flag / per-tx override changes the user just
+            // made. Otherwise the donut headline appears unchanged even
+            // though the list below it updates.
+            async let s = api.financeSummary(month: summary.month)
+            async let list = api.financeTransactionsByFlow(
                 flow: flow.rawValue,
                 month: summary.month,
                 limit: 200)
-            self.transactions = list
+            let (newSummary, newList) = try await (s, list)
+            self.summary = newSummary
+            self.transactions = newList
+            if flow == .saved, let pct = newSummary.savings_target_pct {
+                savingsTargetPct = pct
+            }
             self.loading = false
         } catch let e as APIClient.APIError {
             loadError = e.errorDescription

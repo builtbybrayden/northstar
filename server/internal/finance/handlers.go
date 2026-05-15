@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -306,7 +307,21 @@ func (h *Handlers) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
+	// Log so we can verify the PATCH took effect — useful when the user
+	// reports a toggle "didn't do anything" (usually means UI state
+	// didn't refresh, but worth confirming server-side first).
+	log.Printf("finance.account_patch: id=%s savings=%s income=%s",
+		id,
+		flagRawToText(u.IsSavingsDestination),
+		flagRawToText(u.IncludeInIncome))
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func flagRawToText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return "(unchanged)"
+	}
+	return string(raw)
 }
 
 // applyAccountFlag executes the UPDATE for one nullable bool flag,
@@ -547,6 +562,7 @@ func (h *Handlers) UpdateTransaction(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
+		log.Printf("finance.txn_patch: id=%s flow_override=%s", id, string(u.FlowOverride))
 		if len(u.Category) == 0 {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
 			return
