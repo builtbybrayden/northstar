@@ -73,6 +73,7 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	today := time.Now().UTC().Format("2006-01-02")
 	for _, a := range accs {
 		_, err := s.DB.ExecContext(ctx,
 			`INSERT INTO fin_accounts (actual_id, name, type, balance_cents, on_budget, closed, updated_at)
@@ -86,6 +87,19 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 			a.ID, a.Name, "", a.Balance, boolToInt(!a.OffBudget), boolToInt(a.Closed), now)
 		if err != nil {
 			return err
+		}
+		// Snapshot today's balance for non-closed accounts. INSERT OR REPLACE
+		// keyed on (account, date) — re-running the same day overwrites with
+		// the latest balance, last sync of the day wins.
+		if !a.Closed {
+			_, err = s.DB.ExecContext(ctx,
+				`INSERT OR REPLACE INTO fin_account_balance_history
+				   (account_id, date, balance_cents, on_budget)
+				 VALUES (?, ?, ?, ?)`,
+				a.ID, today, a.Balance, boolToInt(!a.OffBudget))
+			if err != nil {
+				return err
+			}
 		}
 	}
 

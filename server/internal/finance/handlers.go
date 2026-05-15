@@ -1,6 +1,7 @@
 package finance
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -523,6 +524,38 @@ func classifyInvestmentAccount(name string) string {
 	return "other"
 }
 
+// isSavingsDestination returns true when an account looks like a place
+// money goes to be saved, invested, or set aside for retirement. Used by
+// the Finance summary to compute saved_cents as the month's contributions
+// into those accounts (positive inflows), regardless of whether they're
+// on-budget or off-budget in Actual.
+//
+// Real-estate accounts are explicitly excluded — house appreciation isn't
+// "saving" in the cash-flow sense, and we don't want a Zillow re-estimate
+// to inflate the donut.
+func isSavingsDestination(name string) bool {
+	lower := lowerASCII(name)
+	// Retirement
+	if containsAny(lower, "401k", "ira", "roth", "403b", "pension", "retirement") {
+		return true
+	}
+	// Brokerage / equity
+	if containsAny(lower, "robinhood", "fidelity", "schwab", "vanguard", "etrade", "brokerage") {
+		return true
+	}
+	// Crypto
+	if containsAny(lower, "crypto", "bitcoin", "btc", "eth") {
+		return true
+	}
+	// Cash savings — Amex Savings, Chase Savings, HYSAs, money markets.
+	// Deliberately requires the "savings" keyword to avoid catching
+	// "Amex Checking" or "Chase Credit Card".
+	if containsAny(lower, "savings", "hysa", "money market") {
+		return true
+	}
+	return false
+}
+
 func containsAny(haystack string, needles ...string) bool {
 	for _, n := range needles {
 		if n == "" {
@@ -675,9 +708,71 @@ func (h *Handlers) Summary(w http.ResponseWriter, r *http.Request) {
 		resp.Categories = append(resp.Categories, c)
 	}
 	resp.BudgetedCents = totalBudgeted
-	resp.SavedCents = resp.IncomeCents - resp.SpentCents
+
+	// SavedCents = sum of positive inflows this month into accounts whose
+	// name flags them as savings/retirement/brokerage destinations. This
+	// replaces the earlier "income - spent" definition, which collapsed to
+	// a meaningless residual when on-budget income lagged on-budget spend.
+	//
+	// Starting Balance bootstrap rows are excluded so the figure reflects
+	// new contributions only, not the initial balance import.
+	saved, err := computeSavedCents(r.Context(), h.DB, monthLike)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	resp.SavedCents = saved
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// computeSavedCents sums positive transactions during `monthLike` (e.g.
+// "2026-05-%") on every account flagged by isSavingsDestination, excluding
+// Starting Balance bootstrap rows.
+func computeSavedCents(ctx context.Context, db *sql.DB, monthLike string) (int64, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT actual_id, name FROM fin_accounts WHERE closed = 0`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var destIDs []string
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return 0, err
+		}
+		if isSavingsDestination(name) {
+			destIDs = append(destIDs, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(destIDs) == 0 {
+		return 0, nil
+	}
+
+	placeholders := strings.Repeat("?,", len(destIDs)-1) + "?"
+	args := make([]any, 0, len(destIDs)+1)
+	args = append(args, monthLike)
+	for _, id := range destIDs {
+		args = append(args, id)
+	}
+	var saved int64
+	if err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(t.amount_cents), 0)
+		   FROM fin_transactions t
+		  WHERE t.date LIKE ?
+		    AND t.amount_cents > 0
+		    AND t.account_id IN (`+placeholders+`)
+		    AND COALESCE(NULLIF(t.category_user,''), COALESCE(t.category,'')) != 'Starting Balances'
+		    AND LOWER(COALESCE(t.payee,'')) NOT LIKE 'starting balance%'`,
+		args...).Scan(&saved); err != nil {
+		return 0, err
+	}
+	return saved, nil
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

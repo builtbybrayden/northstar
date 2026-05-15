@@ -36,7 +36,11 @@ function log(...args) {
 }
 
 function send(res, status, body) {
-  const json = Buffer.from(JSON.stringify(body));
+  // A handler returning undefined would crash JSON.stringify → Buffer.from
+  // and the catch path would call send() again with a recursive failure.
+  // Default to {ok:true} so the wire contract stays { Content-Type: json }.
+  const payload = body === undefined ? { ok: true } : body;
+  const json = Buffer.from(JSON.stringify(payload));
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Content-Length': json.length,

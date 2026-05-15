@@ -27,6 +27,7 @@ export async function init({ serverURL, password, syncId, dataDir }) {
   });
   await a.downloadBudget(syncId, { password });
   initialized = true;
+  return { ok: true, mode: 'actual', syncId };
 }
 
 function requireInit() {

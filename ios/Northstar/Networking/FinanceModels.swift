@@ -97,6 +97,20 @@ struct Investments: Decodable {
     let accounts: [InvestmentAccount]
 }
 
+// ─── Balance history ────────────────────────────────────────────────────
+
+struct BalanceHistoryDay: Decodable, Identifiable {
+    var id: String { date }
+    let date: String
+    let net_worth_cents: Int64
+    let on_budget_cents: Int64
+    let off_budget_cents: Int64
+}
+
+struct BalanceHistory: Decodable {
+    let days: [BalanceHistoryDay]
+}
+
 extension Int64 {
     /// Formats cents as a USD currency string. Negative values keep their sign.
     func asUSD(decimals: Int = 2) -> String {

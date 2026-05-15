@@ -63,6 +63,9 @@ func TestMigrate_AppliesAll(t *testing.T) {
 		{"goal_habit_log", "count"},
 		// Phase 7.1 — category grouping
 		{"fin_budget_targets", "category_group"},
+		// Phase 7.5 — daily account balance snapshots
+		{"fin_account_balance_history", "balance_cents"},
+		{"fin_account_balance_history", "on_budget"},
 	}
 	for _, c := range cases {
 		t.Run(c.table+"."+c.column, func(t *testing.T) {

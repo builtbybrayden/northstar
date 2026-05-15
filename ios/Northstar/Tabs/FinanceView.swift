@@ -6,6 +6,7 @@ struct FinanceView: View {
     @State private var summary: FinanceSummary?
     @State private var transactions: [Transaction] = []
     @State private var budgetTargets: [BudgetTarget] = []
+    @State private var balanceHistory: [BalanceHistoryDay] = []
     @State private var loadError: String?
     @State private var refreshing = false
     @State private var editingTarget: BudgetTarget?
@@ -96,6 +97,8 @@ struct FinanceView: View {
                 .tracking(-1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+            NetWorthSparkline(days: balanceHistory)
+                .padding(.top, 2)
             HStack(spacing: 16) {
                 Text("On-budget \(s.on_budget_cents.asUSD(decimals: 0))")
                 Text("Off-budget \(s.off_budget_cents.asUSD(decimals: 0))")
@@ -113,11 +116,18 @@ struct FinanceView: View {
     }
 
     private func ringsRow(_ s: FinanceSummary) -> some View {
-        HStack(spacing: 10) {
+        // When the user hasn't set any budget targets yet, budgeted_cents
+        // is 0 and "spent / 0" collapses to 0%. Fall back to spent-vs-income
+        // ("burn rate") so the ring is still meaningful out of the box.
+        let spentDenom = s.budgeted_cents > 0 ? s.budgeted_cents : s.income_cents
+        let spentDenomLabel = s.budgeted_cents > 0
+            ? s.budgeted_cents.asUSD(decimals: 0)
+            : "\(s.income_cents.asUSD(decimals: 0)) inc."
+        return HStack(spacing: 10) {
             ring(label: "Spent",
                  value: s.spent_cents.asUSD(decimals: 0),
-                 of: s.budgeted_cents.asUSD(decimals: 0),
-                 pct: percent(s.spent_cents, of: s.budgeted_cents),
+                 of: spentDenomLabel,
+                 pct: percent(s.spent_cents, of: spentDenom),
                  color: Theme.finance)
             ring(label: "Saved",
                  value: s.saved_cents.asUSD(decimals: 0),
@@ -290,10 +300,12 @@ struct FinanceView: View {
             async let sum = api.financeSummary()
             async let tx  = api.financeTransactions(limit: 25)
             async let bts = api.budgetTargets()
-            let (s, t, b) = try await (sum, tx, bts)
+            async let hist = api.financeBalanceHistory(days: 90)
+            let (s, t, b, h) = try await (sum, tx, bts, hist)
             self.summary = s
             self.transactions = t
             self.budgetTargets = b
+            self.balanceHistory = h.days
             self.loadError = nil
         } catch let e as APIClient.APIError {
             loadError = e.errorDescription

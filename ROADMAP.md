@@ -62,10 +62,22 @@ Backburnered / deferred / dropped:
 - ❌ **Receipt OCR** — dropped from scope; user already gets transactions via
   Actual's bank connection
 
-## Phase 7.5 — maybe
+## Phase 7.5 — partially shipped
 
-- **Daily balance snapshots** — `fin_account_balance_history` table so
-  Investments + Forecast can chart historical drift, not just current state
+Shipped 2026-05-15:
+
+- ✅ **Daily balance snapshots** — `fin_account_balance_history` keyed on
+  (account, day). Syncer writes today's balance for every open account on
+  every tick (INSERT OR REPLACE, idempotent). `GET /api/finance/balance-history?days=N`
+  returns the time series; iOS net-worth card embeds a sparkline.
+- ✅ **Savings-flow donut** — saved_cents now sums positive month inflows
+  to retirement / brokerage / crypto / cash-savings accounts (was the
+  meaningless `income - spent` residual). Spent donut falls back to
+  spent-vs-income when no budget targets are set so it stops collapsing
+  to 0%.
+
+Still on the maybe list:
+
 - **Forecast-driven notifications** — fire a `forecast_warning` when the
   projection crosses zero or a configurable cash floor
 - **HealthKit ingest** if WHOOP gets retired or you want a non-WHOOP path

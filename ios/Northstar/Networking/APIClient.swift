@@ -108,6 +108,9 @@ struct APIClient {
     func financeInvestments() async throws -> Investments {
         try await get(path: "/api/finance/investments")
     }
+    func financeBalanceHistory(days: Int = 90) async throws -> BalanceHistory {
+        try await get(path: "/api/finance/balance-history?days=\(days)")
+    }
 
     /// Apply a user category override to a single transaction.
     /// Pass `nil` to clear the override and revert to the upstream value.
